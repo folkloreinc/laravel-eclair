@@ -50,9 +50,11 @@ ECLAIR_LOG_LEVEL=warn
 ENV
 
     # As in Eclair's compose file: a read-only image, with volumes for the data and the tasks.
+    # The image is built for linux/amd64 only: ARM machines run it under emulation.
     set -- --network "$name" --env-file "$env_file" \
         --volume "$name-data:/var/lib/eclair" --volume "$name-tmp:/tmp/eclair" \
-        --read-only --cap-drop ALL --security-opt no-new-privileges:true
+        --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+        --platform linux/amd64
     docker run --rm "$@" "$image" eclair migrate >&2 || fail 'the migrations failed'
     # host.docker.internal is the machine that runs the tests, where the application listens.
     docker run --detach --name "$name-eclair" "$@" --publish "127.0.0.1:$port:8080" \
