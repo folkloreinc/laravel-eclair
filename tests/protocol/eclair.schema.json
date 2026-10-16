@@ -1,0 +1,1524 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:eclair:protocol:v1",
+    "title": "Eclair protocol 1.0.0-draft",
+    "description": "Generated from openapi.json by `npm run generate`. Reference a definition with `urn:eclair:protocol:v1#/$defs/<name>`.",
+    "$defs": {
+        "JobId": {
+            "description": "Prefixed ULID.",
+            "type": "string",
+            "pattern": "^job_[0-9A-HJKMNP-TV-Z]{26}$",
+            "examples": [
+                "job_01JA2Y8C6W4N5V7TQ3H9XK0B2M"
+            ]
+        },
+        "TaskName": {
+            "description": "Name of a task in a job. It is also the name of its outputs: the handle the application reads.",
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+            "examples": [
+                "h264",
+                "thumbnails"
+            ]
+        },
+        "OperationName": {
+            "description": "Name of an operation, `<domain>.<action>` or `probe`, optionally with a major version: `video.hls@1`. Without a version, the latest one.",
+            "type": "string",
+            "pattern": "^(probe|[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*)(@[1-9][0-9]*)?$",
+            "examples": [
+                "probe",
+                "video.transcode",
+                "video.hls@1"
+            ]
+        },
+        "PresetName": {
+            "description": "Name of a preset. A `/` groups presets: `mediatheque/video`.",
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$",
+            "maxLength": 128,
+            "examples": [
+                "web-video",
+                "mediatheque/video"
+            ]
+        },
+        "StorageName": {
+            "description": "Name of one of the project's storages. `eclair` is Eclair's temporary storage, available to every project.",
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "examples": [
+                "media"
+            ]
+        },
+        "Kind": {
+            "description": "Kind of a file, detected from its content.",
+            "type": "string",
+            "enum": [
+                "image",
+                "video",
+                "audio",
+                "document",
+                "font",
+                "other"
+            ]
+        },
+        "Priority": {
+            "type": "string",
+            "enum": [
+                "low",
+                "normal",
+                "high"
+            ]
+        },
+        "Metadata": {
+            "description": "Free object of the client, returned as is in the job and the webhooks.",
+            "type": "object",
+            "additionalProperties": true
+        },
+        "UrlInput": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "url": {
+                    "description": "`https` URL of the file, for example a presigned URL. Fetched through the SSRF guard.",
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https://",
+                    "maxLength": 4096
+                },
+                "mime": {
+                    "$ref": "#/$defs/MimeHint"
+                },
+                "size": {
+                    "$ref": "#/$defs/SizeHint"
+                }
+            }
+        },
+        "StorageInput": {
+            "type": "object",
+            "required": [
+                "storage",
+                "path"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "storage": {
+                    "$ref": "#/$defs/StorageName"
+                },
+                "path": {
+                    "$ref": "#/$defs/StoragePath"
+                },
+                "mime": {
+                    "$ref": "#/$defs/MimeHint"
+                },
+                "size": {
+                    "$ref": "#/$defs/SizeHint"
+                }
+            }
+        },
+        "Input": {
+            "description": "The file to process: a URL, a path in one of the project's storages, or an upload.",
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/UrlInput"
+                },
+                {
+                    "$ref": "#/$defs/StorageInput"
+                },
+                {
+                    "$ref": "#/$defs/UploadInput"
+                }
+            ]
+        },
+        "StoragePath": {
+            "description": "Path in a storage, without a leading `/`.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^[^/]"
+        },
+        "MimeHint": {
+            "description": "The mime type the client expects. A hint: Eclair detects the real one from the content.",
+            "type": "string",
+            "pattern": "^[a-z]+/[a-zA-Z0-9.+-]+$"
+        },
+        "SizeHint": {
+            "description": "The size in bytes the client expects. A hint, checked against the project's limits before downloading.",
+            "type": "integer",
+            "minimum": 0
+        },
+        "OutputTarget": {
+            "description": "Where output files are written. Optional when no task writes files.",
+            "type": "object",
+            "required": [
+                "storage"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "storage": {
+                    "$ref": "#/$defs/StorageName"
+                },
+                "prefix": {
+                    "description": "Prefix of every output path, usually ending with `/`.",
+                    "type": "string",
+                    "maxLength": 512,
+                    "default": ""
+                },
+                "path": {
+                    "description": "Pattern of each output file's path, after the prefix. `{task}` is the task's name, `{file}` the file's name.",
+                    "type": "string",
+                    "maxLength": 512,
+                    "default": "{task}/{file}"
+                }
+            }
+        },
+        "TaskCondition": {
+            "description": "Runs the task only if the probed input matches every given condition. Otherwise the task is `skipped`.",
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+                "kind": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Kind"
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true
+                },
+                "mime": {
+                    "description": "Mime types, with `*` for a subtype: `image/*`.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[a-z]+/([a-zA-Z0-9.+-]+|\\*)$"
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true
+                },
+                "minDuration": {
+                    "description": "Seconds.",
+                    "type": "number",
+                    "minimum": 0
+                },
+                "maxDuration": {
+                    "description": "Seconds.",
+                    "type": "number",
+                    "minimum": 0
+                }
+            }
+        },
+        "TaskRequest": {
+            "type": "object",
+            "required": [
+                "op"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "op": {
+                    "$ref": "#/$defs/OperationName"
+                },
+                "from": {
+                    "description": "Name of the task whose output is this task's input. Defaults to the job's input. `h264:file` picks one output file of that task.",
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}(:[A-Za-z0-9_.-]+)?$"
+                },
+                "options": {
+                    "description": "Validated against the operation's options schema (see `GET /v1/operations`).",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "after": {
+                    "description": "Extra dependencies, for ordering without using an output.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/TaskName"
+                    },
+                    "uniqueItems": true
+                },
+                "keep": {
+                    "description": "`false` for an intermediate output, deleted when the job ends.",
+                    "type": "boolean",
+                    "default": true
+                },
+                "when": {
+                    "$ref": "#/$defs/TaskCondition"
+                }
+            }
+        },
+        "TaskRequests": {
+            "description": "Named tasks.",
+            "type": "object",
+            "propertyNames": {
+                "$ref": "#/$defs/TaskName"
+            },
+            "additionalProperties": {
+                "$ref": "#/$defs/TaskRequest"
+            },
+            "maxProperties": 100
+        },
+        "JobRequest": {
+            "description": "A job: an input, where to write the outputs, and a pipeline: a preset, inline tasks, or both. Without a preset, `tasks` is required. Tasks with the same name as a preset's task replace it.",
+            "type": "object",
+            "required": [
+                "input"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "input": {
+                    "$ref": "#/$defs/Input"
+                },
+                "output": {
+                    "$ref": "#/$defs/OutputTarget"
+                },
+                "preset": {
+                    "$ref": "#/$defs/PresetName"
+                },
+                "tasks": {
+                    "$ref": "#/$defs/TaskRequests"
+                },
+                "webhook": {
+                    "description": "URL called when the job ends. Defaults to the project's webhook.",
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https://",
+                    "maxLength": 2048
+                },
+                "metadata": {
+                    "$ref": "#/$defs/Metadata"
+                },
+                "priority": {
+                    "$ref": "#/$defs/Priority",
+                    "description": "Within the project's limits.",
+                    "default": "normal"
+                },
+                "failFast": {
+                    "description": "Cancel the remaining tasks as soon as one fails.",
+                    "type": "boolean",
+                    "default": false
+                }
+            },
+            "if": {
+                "not": {
+                    "required": [
+                        "preset"
+                    ]
+                }
+            },
+            "then": {
+                "required": [
+                    "tasks"
+                ],
+                "properties": {
+                    "tasks": {
+                        "type": "object",
+                        "minProperties": 1
+                    }
+                }
+            }
+        },
+        "JobStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "completed",
+                "failed",
+                "canceled"
+            ]
+        },
+        "TaskStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "queued",
+                "running",
+                "completed",
+                "failed",
+                "canceled",
+                "skipped"
+            ]
+        },
+        "TaskErrorCode": {
+            "description": "Stable error code: `input_unreadable`, `unsupported_input`, `timeout`, `limit_exceeded`, `operation_failed`, `storage_failed`, `provider_failed`, and `dependency_failed` when a task it depends on failed. New codes can be added: treat unknown ones as `operation_failed`.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "examples": [
+                "input_unreadable",
+                "unsupported_input",
+                "timeout",
+                "limit_exceeded",
+                "operation_failed",
+                "storage_failed",
+                "provider_failed",
+                "dependency_failed"
+            ]
+        },
+        "TaskError": {
+            "type": "object",
+            "required": [
+                "code",
+                "message"
+            ],
+            "properties": {
+                "code": {
+                    "$ref": "#/$defs/TaskErrorCode"
+                },
+                "message": {
+                    "description": "For humans. Can change.",
+                    "type": "string"
+                }
+            }
+        },
+        "OutputFile": {
+            "type": "object",
+            "required": [
+                "name",
+                "path",
+                "mime",
+                "size"
+            ],
+            "properties": {
+                "name": {
+                    "description": "Name of the file within the task's outputs.",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "Path in the job's output storage.",
+                    "type": "string"
+                },
+                "mime": {
+                    "type": "string"
+                },
+                "size": {
+                    "description": "Bytes.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "checksum": {
+                    "description": "SHA-256 of the file, in hex.",
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                },
+                "role": {
+                    "description": "What the file is for, when a task writes several: `main`, `thumbnail`, `segment`…",
+                    "type": "string"
+                },
+                "count": {
+                    "description": "For files with many parts (HLS segments, a thumbnail series): how many parts are not listed.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "url": {
+                    "description": "Signed download URL, for files in the temporary storage (`eclair`): the bucket's presigned URL, or `GET /v1/files/{token}` when the temporary storage is a local directory. Not for end users: it expires with the file.",
+                    "type": "string",
+                    "format": "uri"
+                },
+                "expiresAt": {
+                    "description": "When a file in the temporary storage is deleted.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "expired": {
+                    "description": "`true` once a file in the temporary storage was deleted. It then has no `url`.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "TaskOutputs": {
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "description": "Data extracted by the task. Its shape depends on the operation: `probe` gives a `ProbeMetadata`.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/OutputFile"
+                    }
+                }
+            }
+        },
+        "Task": {
+            "type": "object",
+            "required": [
+                "status",
+                "op"
+            ],
+            "properties": {
+                "status": {
+                    "$ref": "#/$defs/TaskStatus"
+                },
+                "op": {
+                    "description": "The operation that runs, always with its version: `video.hls@1`.",
+                    "type": "string"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "after": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/TaskName"
+                    }
+                },
+                "progress": {
+                    "description": "From 0 to 1, while the task runs.",
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "attempts": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "startedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "endedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "outputs": {
+                    "$ref": "#/$defs/TaskOutputs"
+                },
+                "error": {
+                    "$ref": "#/$defs/TaskError"
+                }
+            }
+        },
+        "Job": {
+            "type": "object",
+            "required": [
+                "id",
+                "status",
+                "createdAt",
+                "tasks"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/JobId"
+                },
+                "status": {
+                    "$ref": "#/$defs/JobStatus"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "startedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "endedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "input": {
+                    "$ref": "#/$defs/Input"
+                },
+                "output": {
+                    "$ref": "#/$defs/OutputTarget"
+                },
+                "preset": {
+                    "description": "The preset the job used, and its version at that time.",
+                    "type": "object",
+                    "required": [
+                        "name",
+                        "version"
+                    ],
+                    "properties": {
+                        "name": {
+                            "$ref": "#/$defs/PresetName"
+                        },
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                },
+                "priority": {
+                    "$ref": "#/$defs/Priority"
+                },
+                "failFast": {
+                    "type": "boolean"
+                },
+                "metadata": {
+                    "$ref": "#/$defs/Metadata"
+                },
+                "tasks": {
+                    "description": "Every task of the resolved pipeline, by name.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/Task"
+                    }
+                }
+            }
+        },
+        "JobList": {
+            "type": "object",
+            "required": [
+                "data",
+                "nextCursor"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Job"
+                    }
+                },
+                "nextCursor": {
+                    "$ref": "#/$defs/NextCursor"
+                }
+            }
+        },
+        "NextCursor": {
+            "description": "Cursor of the next page, `null` on the last one.",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "JobEvent": {
+            "description": "An event of `GET /v1/jobs/{id}/events`.",
+            "type": "object",
+            "required": [
+                "type",
+                "job"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "job.status",
+                        "task.status",
+                        "task.progress"
+                    ]
+                },
+                "job": {
+                    "$ref": "#/$defs/JobId"
+                },
+                "status": {
+                    "description": "The new status, for `job.status` and `task.status`.",
+                    "type": "string"
+                },
+                "task": {
+                    "description": "The task, for `task.*` events.",
+                    "$ref": "#/$defs/TaskName"
+                },
+                "progress": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                }
+            }
+        },
+        "PresetRequest": {
+            "type": "object",
+            "required": [
+                "tasks"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "tasks": {
+                    "$ref": "#/$defs/TaskRequests",
+                    "minProperties": 1
+                }
+            }
+        },
+        "Preset": {
+            "type": "object",
+            "required": [
+                "name",
+                "scope",
+                "version",
+                "tasks"
+            ],
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/PresetName"
+                },
+                "scope": {
+                    "description": "`global` presets come with the server or the admin API, `project` presets are the project's own.",
+                    "type": "string",
+                    "enum": [
+                        "global",
+                        "project"
+                    ]
+                },
+                "version": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "description": {
+                    "type": "string"
+                },
+                "tasks": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/TaskRequest"
+                    }
+                }
+            }
+        },
+        "PresetList": {
+            "type": "object",
+            "required": [
+                "data"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Preset"
+                    }
+                }
+            }
+        },
+        "Operation": {
+            "type": "object",
+            "required": [
+                "name",
+                "version",
+                "accepts",
+                "capability",
+                "outputs",
+                "options"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "examples": [
+                        "image.palette"
+                    ]
+                },
+                "version": {
+                    "description": "Major version.",
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "description": {
+                    "type": "string"
+                },
+                "accepts": {
+                    "description": "Inputs it can read. Other inputs are refused before anything runs.",
+                    "type": "object",
+                    "properties": {
+                        "kinds": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/Kind"
+                            }
+                        },
+                        "mimes": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "capability": {
+                    "description": "Queue it runs on.",
+                    "type": "string",
+                    "examples": [
+                        "cpu",
+                        "video",
+                        "gpu",
+                        "ai"
+                    ]
+                },
+                "outputs": {
+                    "type": "object",
+                    "required": [
+                        "files",
+                        "metadata"
+                    ],
+                    "properties": {
+                        "files": {
+                            "type": "boolean"
+                        },
+                        "metadata": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "options": {
+                    "description": "JSON Schema (2020-12) of the options.",
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "OperationList": {
+            "type": "object",
+            "required": [
+                "data"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Operation"
+                    }
+                }
+            }
+        },
+        "WebhookEvent": {
+            "type": "string",
+            "enum": [
+                "job.completed",
+                "job.failed",
+                "job.canceled",
+                "task.completed"
+            ]
+        },
+        "Signature": {
+            "description": "`t=<unix time>,v1=<hex HMAC-SHA256>`. Several `v1` values can follow: the signature is valid if one of them matches.",
+            "type": "string",
+            "pattern": "^t=[0-9]+(,v1=[0-9a-f]{64})+$"
+        },
+        "Problem": {
+            "description": "Problem details (RFC 9457).",
+            "type": "object",
+            "required": [
+                "title",
+                "status"
+            ],
+            "properties": {
+                "type": {
+                    "description": "URI of the problem type. `about:blank` when the status says it all.",
+                    "type": "string",
+                    "format": "uri-reference",
+                    "default": "about:blank"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer",
+                    "minimum": 400,
+                    "maximum": 599
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "instance": {
+                    "type": "string",
+                    "format": "uri-reference"
+                },
+                "errors": {
+                    "description": "Validation errors: messages by JSON pointer to the invalid value in the request body (`/tasks/h264/options/codec`). The empty pointer is the body itself.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "UploadId": {
+            "description": "Prefixed ULID.",
+            "type": "string",
+            "pattern": "^upl_[0-9A-HJKMNP-TV-Z]{26}$",
+            "examples": [
+                "upl_01JA2Y9F3K8M2R6T4V7W9X1Z3B"
+            ]
+        },
+        "UploadInput": {
+            "type": "object",
+            "required": [
+                "upload"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "upload": {
+                    "$ref": "#/$defs/UploadId",
+                    "description": "A file sent with `POST /v1/uploads`."
+                },
+                "mime": {
+                    "$ref": "#/$defs/MimeHint"
+                },
+                "size": {
+                    "$ref": "#/$defs/SizeHint"
+                }
+            }
+        },
+        "JobFile": {
+            "description": "A file of a job, with the task that wrote it.",
+            "allOf": [
+                {
+                    "$ref": "#/$defs/OutputFile"
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "task"
+                    ],
+                    "properties": {
+                        "task": {
+                            "$ref": "#/$defs/TaskName"
+                        }
+                    }
+                }
+            ]
+        },
+        "JobFileList": {
+            "type": "object",
+            "required": [
+                "data",
+                "nextCursor"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/JobFile"
+                    }
+                },
+                "nextCursor": {
+                    "$ref": "#/$defs/NextCursor"
+                }
+            }
+        },
+        "ProbeMetadata": {
+            "description": "What `probe` reads from a file. Only what applies to the file's kind is present.",
+            "type": "object",
+            "required": [
+                "kind",
+                "mime"
+            ],
+            "properties": {
+                "kind": {
+                    "$ref": "#/$defs/Kind"
+                },
+                "mime": {
+                    "description": "Detected from the content.",
+                    "type": "string"
+                },
+                "extension": {
+                    "description": "Usual extension for the mime type, without the dot.",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "Bytes.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "checksum": {
+                    "description": "SHA-256 of the whole file, in hex, when asked for.",
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                },
+                "width": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "height": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "rotation": {
+                    "description": "Degrees, clockwise.",
+                    "type": "integer",
+                    "enum": [
+                        0,
+                        90,
+                        180,
+                        270
+                    ]
+                },
+                "duration": {
+                    "description": "Seconds.",
+                    "type": "number",
+                    "minimum": 0
+                },
+                "frameRate": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "bitrate": {
+                    "description": "Bits per second.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "videoCodec": {
+                    "type": "string",
+                    "examples": [
+                        "h264",
+                        "hevc",
+                        "vp9"
+                    ]
+                },
+                "audioCodec": {
+                    "type": "string",
+                    "examples": [
+                        "aac",
+                        "opus",
+                        "mp3"
+                    ]
+                },
+                "audioChannels": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "pageCount": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "fontNames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "animated": {
+                    "type": "boolean"
+                },
+                "exif": {
+                    "description": "A summary of the EXIF data. GPS data is never included.",
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "ProbeRequest": {
+            "type": "object",
+            "required": [
+                "input"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "input": {
+                    "$ref": "#/$defs/Input"
+                },
+                "timeout": {
+                    "description": "Seconds to wait for the result before answering `202` with a job.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30,
+                    "default": 10
+                },
+                "checksum": {
+                    "description": "Add a SHA-256 of the whole file. It reads all of it, so it can take longer.",
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
+        "ProbeResult": {
+            "type": "object",
+            "required": [
+                "metadata"
+            ],
+            "properties": {
+                "metadata": {
+                    "$ref": "#/$defs/ProbeMetadata"
+                }
+            }
+        },
+        "Upload": {
+            "type": "object",
+            "required": [
+                "id",
+                "size",
+                "expiresAt"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/UploadId"
+                },
+                "size": {
+                    "description": "Bytes.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "mime": {
+                    "description": "Detected from the content, once the upload is complete.",
+                    "type": "string"
+                },
+                "complete": {
+                    "description": "`false` while a resumable upload is in progress.",
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "metadata": {
+                    "$ref": "#/$defs/ProbeMetadata",
+                    "description": "With `?probe=1`."
+                }
+            }
+        },
+        "ProjectSettings": {
+            "description": "A project's settings. Every one has a default; limits not set use the server's.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "concurrency": {
+                    "description": "Tasks of the project that can run at the same time, over every worker.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000,
+                    "default": 4
+                },
+                "maxInputSize": {
+                    "description": "Largest input, in bytes. `ECLAIR_MAX_INPUT_SIZE` when not set.",
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "maxDirectUpload": {
+                    "description": "Largest file sent in the body of `POST /v1/probe` or `POST /v1/uploads`, in bytes.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 104857600
+                },
+                "taskTimeout": {
+                    "description": "Longest a task may run, in milliseconds. `ECLAIR_TASK_TIMEOUT` when not set.",
+                    "type": "integer",
+                    "minimum": 1000
+                },
+                "tempRetention": {
+                    "description": "How long temporary files are kept, in milliseconds, at most `ECLAIR_TEMP_MAX_RETENTION`.",
+                    "type": "integer",
+                    "minimum": 60000
+                },
+                "operations": {
+                    "description": "Operations the project may use, by name. All of them when not set.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "uniqueItems": true
+                },
+                "inputHosts": {
+                    "description": "Hosts that `url` inputs may come from (`cdn.example.com`, `*.example.com`). Any public host when not set.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "uniqueItems": true
+                },
+                "probesPerMinute": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 600
+                },
+                "taskWebhooks": {
+                    "description": "Sends a `task.completed` webhook for each task, besides the job's.",
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
+        "AdminProject": {
+            "type": "object",
+            "required": [
+                "id",
+                "slug",
+                "name",
+                "priority",
+                "webhookUrl",
+                "settings",
+                "disabled",
+                "createdAt",
+                "updatedAt"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^prj_[0-9A-HJKMNP-TV-Z]{26}$"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "priority": {
+                    "$ref": "#/$defs/Priority"
+                },
+                "webhookUrl": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "settings": {
+                    "$ref": "#/$defs/ProjectSettings"
+                },
+                "disabled": {
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "AdminProjectList": {
+            "type": "object",
+            "required": [
+                "data"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/AdminProject"
+                    }
+                }
+            }
+        },
+        "ProjectRequest": {
+            "type": "object",
+            "required": [
+                "slug"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                },
+                "priority": {
+                    "$ref": "#/$defs/Priority"
+                },
+                "webhookUrl": {
+                    "type": "string",
+                    "pattern": "^https://",
+                    "maxLength": 2048
+                },
+                "settings": {
+                    "description": "Settings that differ from the defaults (see `ProjectSettings`).",
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "ProjectCreated": {
+            "type": "object",
+            "required": [
+                "project",
+                "webhookSecret"
+            ],
+            "properties": {
+                "project": {
+                    "$ref": "#/$defs/AdminProject"
+                },
+                "webhookSecret": {
+                    "description": "Verifies the webhooks and signed storage requests. Shown here once; `GET …/webhook-secret` reads it again.",
+                    "type": "string"
+                }
+            }
+        },
+        "ProjectPatch": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                },
+                "priority": {
+                    "$ref": "#/$defs/Priority"
+                },
+                "webhookUrl": {
+                    "description": "`null` removes it.",
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "pattern": "^https://",
+                    "maxLength": 2048
+                },
+                "settings": {
+                    "description": "Merged into the current settings. A setting set to `null` goes back to its default.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "disabled": {
+                    "description": "A disabled project's keys are refused.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "WebhookSecret": {
+            "type": "object",
+            "required": [
+                "webhookSecret"
+            ],
+            "properties": {
+                "webhookSecret": {
+                    "type": "string"
+                }
+            }
+        },
+        "Scope": {
+            "type": "string",
+            "enum": [
+                "jobs:read",
+                "jobs:write",
+                "presets:write"
+            ]
+        },
+        "ApiKey": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "prefix",
+                "scopes",
+                "createdAt",
+                "lastUsedAt",
+                "revoked"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "prefix": {
+                    "description": "The start of the key, to recognize it.",
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Scope"
+                    }
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "lastUsedAt": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "format": "date-time"
+                },
+                "revoked": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ApiKeyList": {
+            "type": "object",
+            "required": [
+                "data"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/ApiKey"
+                    }
+                }
+            }
+        },
+        "ApiKeyRequest": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                },
+                "scopes": {
+                    "description": "Every scope when not set.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Scope"
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true
+                }
+            }
+        },
+        "ApiKeyCreated": {
+            "type": "object",
+            "required": [
+                "key",
+                "token"
+            ],
+            "properties": {
+                "key": {
+                    "$ref": "#/$defs/ApiKey"
+                },
+                "token": {
+                    "description": "The key, shown once: only its hash is kept.",
+                    "type": "string"
+                }
+            }
+        },
+        "StorageRequest": {
+            "description": "A storage's kind and configuration. `s3`: `bucket`, `region` (`us-east-1`), `endpoint`, `prefix`, `accessKeyId`, `secretAccessKey`, `forcePathStyle`. `http`: `url`. The configuration is encrypted and never shown again.",
+            "type": "object",
+            "required": [
+                "kind",
+                "config"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "s3",
+                        "http"
+                    ]
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "Storage": {
+            "description": "A storage, without its credentials.",
+            "type": "object",
+            "required": [
+                "name",
+                "kind",
+                "location",
+                "createdAt",
+                "updatedAt"
+            ],
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/StorageName"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "s3",
+                        "http"
+                    ]
+                },
+                "location": {
+                    "description": "Where it points: `s3://bucket/prefix (endpoint)` or the URL.",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "StorageList": {
+            "type": "object",
+            "required": [
+                "data"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Storage"
+                    }
+                }
+            }
+        },
+        "UsageLine": {
+            "type": "object",
+            "required": [
+                "project",
+                "day",
+                "tasks",
+                "cpuSeconds",
+                "mediaSeconds",
+                "bytesIn",
+                "bytesOut",
+                "bytesStored"
+            ],
+            "properties": {
+                "project": {
+                    "description": "The project's slug.",
+                    "type": "string"
+                },
+                "day": {
+                    "description": "UTC day.",
+                    "type": "string",
+                    "format": "date"
+                },
+                "tasks": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "cpuSeconds": {
+                    "description": "Wall-clock time of the tasks, for now.",
+                    "type": "number",
+                    "minimum": 0
+                },
+                "mediaSeconds": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "bytesIn": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "bytesOut": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "bytesStored": {
+                    "description": "Bytes written to the temporary storage.",
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        },
+        "UsageReport": {
+            "type": "object",
+            "required": [
+                "data"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/UsageLine"
+                    }
+                }
+            }
+        }
+    }
+}
