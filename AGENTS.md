@@ -35,6 +35,14 @@ composer test
 
 - PHPUnit with Orchestra Testbench.
 - **Protocol tests.** Requests the client sends and every answer of `EclairFake` are checked against the protocol's JSON Schema (`tests/protocol/eclair.schema.json`, at the Eclair commit in `tests/protocol/VERSION`). Refresh it with `tests/protocol/update.sh <eclair checkout>`.
+- **End-to-end tests.** `tests/EndToEnd` runs the client against a real Eclair server, and is skipped when `ECLAIR_E2E_URL` is unset. `tests/EndToEnd/eclair.sh` starts Redis and the Eclair image (`ghcr.io/urbania-media/eclair:main`, or `ECLAIR_IMAGE`) in Docker with SQLite, creates a project, its key and an `app` storage, and prints the variables of the tests. `StorageTest` serves the application on PHP's built-in server (port 8099), where Eclair reaches it at `host.docker.internal`. CI runs them in the `e2e` job.
+
+  ```bash
+  export $(tests/EndToEnd/eclair.sh up)
+  vendor/bin/phpunit --testsuite EndToEnd
+  tests/EndToEnd/eclair.sh down
+  ```
+
 - **Every change comes with tests.** A bug fix adds a regression test that fails without the fix.
 - Before pushing, run `composer lint`, `composer analyse` and `composer test`, and say in the PR what you ran.
 
@@ -42,4 +50,4 @@ composer test
 
 - Branch from `main`: `feature/<issue>-<slug>`, `fix/<issue>-<slug>`, `docs/…`, `ci/…`, `refactor/…`, `chore/…`.
 - Open a pull request with `Closes #<issue>` or `Part of #<issue>` and the list of checks you ran.
-- GitHub Actions (`.github/workflows/ci.yml`) runs Pint, Larastan and the tests (PHP 8.3–8.5 × Laravel 12–13) on every pull request. **Merge only when CI is green.** Never skip, disable or weaken a test to get there.
+- GitHub Actions (`.github/workflows/ci.yml`) runs Pint, Larastan, the tests (PHP 8.3–8.5 × Laravel 12–13) and the end-to-end tests on every pull request. **Merge only when CI is green.** Never skip, disable or weaken a test to get there.

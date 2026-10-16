@@ -83,3 +83,36 @@ jobs:
 
             - name: Run tests
               run: vendor/bin/phpunit
+
+    e2e:
+        name: End to end
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v5
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.4'
+                  coverage: none
+
+            - name: Cache Composer downloads
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/composer/files
+                  key: composer-${{ runner.os }}-e2e-${{ hashFiles('composer.json') }}
+                  restore-keys: composer-${{ runner.os }}-e2e-
+
+            - name: Install dependencies
+              run: composer update --prefer-dist --no-interaction --no-progress
+
+            # Redis and ghcr.io/urbania-media/eclair:main with SQLite, a project, its key and the
+            # app storage. The variables of the tests go to the next steps.
+            - name: Start Eclair
+              run: tests/EndToEnd/eclair.sh up >> "$GITHUB_ENV"
+
+            - name: Run the end-to-end tests
+              run: vendor/bin/phpunit --testsuite EndToEnd --fail-on-skipped
+
+            - name: Show Eclair's logs
+              if: failure()
+              run: tests/EndToEnd/eclair.sh logs
