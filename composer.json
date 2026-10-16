@@ -1,0 +1,79 @@
+{
+    "name": "folklore/laravel-eclair",
+    "description": "Laravel client for Eclair, the self-hosted media processing server",
+    "keywords": [
+        "laravel",
+        "eclair",
+        "media",
+        "transcoding",
+        "ffmpeg"
+    ],
+    "homepage": "https://github.com/folkloreinc/laravel-eclair",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Folklore",
+            "email": "info@folklore.email",
+            "homepage": "http://folkloreinc.ca"
+        },
+        {
+            "name": "David Mongeau-Petitpas",
+            "email": "dmp@folklore.email",
+            "homepage": "http://mongo.ca",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "guzzlehttp/guzzle": "^7.8",
+        "illuminate/cache": "^12.0|^13.0",
+        "illuminate/console": "^12.0|^13.0",
+        "illuminate/contracts": "^12.0|^13.0",
+        "illuminate/filesystem": "^12.0|^13.0",
+        "illuminate/http": "^12.0|^13.0",
+        "illuminate/routing": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
+        "nesbot/carbon": "^3.8"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.18",
+        "opis/json-schema": "^2.4",
+        "orchestra/testbench": "^10.0|^11.0",
+        "phpunit/phpunit": "^11.5|^12.0"
+    },
+    "suggest": {
+        "folklore/laravel-mediatheque": "Run the pipelines of laravel-mediatheque 2 on Eclair"
+    },
+    "autoload": {
+        "psr-4": {
+            "Folklore\\Eclair\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Folklore\\Eclair\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "format": "pint",
+        "lint": "pint --test",
+        "analyse": "phpstan analyse --memory-limit=1G"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Folklore\\Eclair\\EclairServiceProvider"
+            ],
+            "aliases": {
+                "Eclair": "Folklore\\Eclair\\Facades\\Eclair"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
