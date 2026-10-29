@@ -149,6 +149,31 @@ class EclairFake extends Eclair
     }
 
     /**
+     * Completes one task of the job, with its outputs (`['files' => […], 'metadata' => […]]`), as
+     * a `task.completed` webhook reports it. The job keeps running.
+     *
+     * @param  array<string, mixed>  $outputs
+     */
+    public function completeTask(Job|string $job, string $task, array $outputs = []): Job
+    {
+        $id = $this->id($job);
+        if (! isset($this->jobs[$id]['tasks'][$task])) {
+            throw new LogicException(sprintf('The job %s has no task "%s".', $id, $task));
+        }
+        $now = self::now();
+        $this->jobs[$id]['tasks'][$task] = [
+            'startedAt' => $now,
+            ...$this->jobs[$id]['tasks'][$task],
+            'status' => 'completed',
+            'endedAt' => $now,
+            ...($outputs === [] ? [] : ['outputs' => $this->outputs($outputs)]),
+        ];
+        $this->jobs[$id] = ['startedAt' => $now, ...$this->jobs[$id], 'status' => 'running'];
+
+        return $this->job($id);
+    }
+
+    /**
      * Fails a task of the job: the tasks that depend on it fail with `dependency_failed`, and the
      * other unfinished tasks complete.
      */

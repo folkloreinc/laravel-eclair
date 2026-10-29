@@ -79,4 +79,29 @@ return [
         'middleware' => [],
         'max_size' => null,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | laravel-mediatheque 2
+    |--------------------------------------------------------------------------
+    |
+    | With laravel-mediatheque 2 installed, pipelines can name the `eclair`
+    | transcoder. Its runs are reconciled from the webhooks, so the webhook
+    | route must be on, with the project's `taskWebhooks` setting to record
+    | each rendition as soon as it completes.
+    |
+    | `prober` makes Eclair probe the media too, instead of the server's own
+    | binaries. A probe longer than `probe_timeout` seconds (30 at most)
+    | completes with its job's webhook.
+    |
+    | `operations` adds operations of this Eclair server that pipelines may
+    | use, besides the built-in ones (plugins, AI operations).
+    |
+    */
+
+    'mediatheque' => [
+        'prober' => (bool) env('ECLAIR_MEDIATHEQUE_PROBER', false),
+        'probe_timeout' => 10,
+        'operations' => [],
+    ],
 ];
