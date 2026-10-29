@@ -8,8 +8,7 @@ The Laravel client of [Eclair](https://github.com/urbania-media/eclair), a self-
 - Downloads of outputs from Eclair's temporary storage to a disk.
 - `Eclair::fake()`, an in-memory Eclair for your tests.
 - `php artisan eclair:status`, to check the configuration.
-
-The `eclair` transcoder and prober of [`laravel-mediatheque`](https://github.com/folkloreinc/laravel-mediatheque) 2 come with the mediatheque's contracts (see [#1](https://github.com/folkloreinc/laravel-eclair/issues/1)).
+- The `eclair` transcoder and prober of [`laravel-mediatheque`](https://github.com/folkloreinc/laravel-mediatheque) 2.
 
 **Status:** in development, before 1.0. Requires PHP 8.3+ and Laravel 12+.
 
@@ -153,6 +152,41 @@ Eclair reads inputs and writes outputs on the project's storages. Three ways, de
   });
   ```
 
+## laravel-mediatheque 2
+
+With `folklore/laravel-mediatheque` 2.0.0-alpha.11 or newer, a pipeline can run on Eclair instead of the application's own ffmpeg. Name the `eclair` transcoder in it:
+
+```php
+// config/mediatheque.php
+'pipelines' => [
+    'video' => [
+        'transcoder' => 'eclair',
+        'renditions' => [
+            'h264' => ['op' => 'video.transcode', 'max_width' => 1920],
+            'poster' => ['op' => 'video.poster', 'from' => 'h264', 'role' => 'poster'],
+            'thumbnails' => ['op' => 'video.thumbnails', 'count' => 5, 'role' => 'thumbnail'],
+        ],
+    ],
+],
+```
+
+Renditions stay those of the `ffmpeg` driver: same operations, same options and same defaults, so switching a pipeline is configuration. A run becomes one Eclair job, with a task per rendition, which writes its files under the run's path prefix on the run's disk. The webhooks report each rendition to the mediatheque as it completes.
+
+What it needs:
+
+- The disks of the originals and renditions in `eclair.storages`, mapped to storages of the Eclair project. With an S3-compatible disk, the storage is on the same bucket, with the disk's `root` as prefix.
+- The webhook route, reachable by Eclair, and the project's `taskWebhooks` setting on (`eclair projects:update <project> --set taskWebhooks=true`), so each rendition is recorded when it completes instead of when the whole run ends.
+- The operations of the server: Eclair's built-in ones. Add the server's others (plugins) to `eclair.mediatheque.operations`.
+
+`ECLAIR_MEDIATHEQUE_PROBER=true` probes the media with Eclair too, so the application's servers need neither ffprobe nor ImageMagick. A probe longer than `eclair.mediatheque.probe_timeout` seconds completes with its job's webhook.
+
+How it maps ([decision 0004](docs/decisions/0004-mediatheque-driver.md)):
+
+- Options are renamed for Eclair (`max_width` → `maxWidth`, `crf` → `quality`, `'128k'` → `128`), and the `ffmpeg` driver's defaults are sent where Eclair's differ (the waveform's size, the thumbnails' times, the poster's time…). Options of Eclair's own (`scenes`, `in_middle`…) pass through.
+- A rendition whose `when` doesn't match the probed media is skipped at submit time, with those that read from it.
+- Files of a public run are made public once written: Eclair writes them private.
+- `cancel()` cancels the job, and `refresh()` reads it again, for a webhook that never came.
+
 ## Testing
 
 `Eclair::fake()` replaces Eclair with an in-memory server. The client sends its requests through Laravel's HTTP client as usual, and the fake answers them as Eclair would, so `Http::assertSent()` and `Http::preventStrayRequests()` keep working.
@@ -184,15 +218,16 @@ class VideoTest extends TestCase
 
 - Jobs stay pending until the test calls `completeJob()` or `failJob()`. `failJob($job, 'h264', 'timeout')` also fails the tasks that depend on it with `dependency_failed`.
 - A file with `contents` in `completeJob()` is in the temporary storage: `Eclair::download()` reads it.
+- `completeTask($job, 'h264', $outputs)` completes one task while the job keeps running, as with `task.completed` webhooks.
 - `probeReturns($metadata)` sets what probes return, and `probeReturns([], pending: true)` makes them answer with a job.
 - Assertions: `assertJobCreated()`, `assertJobNotCreated()`, `assertNothingCreated()`, `assertJobCount()`, `assertJobCanceled()`, `assertProbed()`, `assertUploaded()`, `assertPresetSaved()`.
 - `postEclairWebhook($job, $event = null, $task = null)` sends a signed webhook to your route.
 
 ## Versions
 
-| laravel-eclair | Eclair protocol | PHP  | Laravel |
-| -------------- | --------------- | ---- | ------- |
-| main (0.x)     | `/v1`           | 8.3+ | 12, 13  |
+| laravel-eclair | Eclair protocol | PHP  | Laravel | laravel-mediatheque  |
+| -------------- | --------------- | ---- | ------- | -------------------- |
+| main (0.x)     | `/v1`           | 8.3+ | 12, 13  | 2.0.0-alpha.11+ (optional) |
 
 ## License
 

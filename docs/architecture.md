@@ -27,6 +27,7 @@ Application ──── Eclair::jobs()->create() ─────────▶
 | `Support\Signature`                      | Eclair's signatures: `t={timestamp},v1={hmac}` over `{timestamp}.{payload}`                                   |
 | `Testing\EclairFake`                     | An in-memory Eclair behind Laravel's HTTP client ([decision 0003](decisions/0003-fake-behind-the-http-client.md)) |
 | `Console\StatusCommand`                  | `eclair:status`                                                                                               |
+| `Mediatheque\*`                          | The `eclair` transcoder and prober of `laravel-mediatheque` 2 ([below](#the-mediatheque-driver))               |
 
 ## Requests
 
@@ -54,6 +55,25 @@ Eclair reads and writes files on the project's storages, each registered in Ecla
 - an `http` storage calls the application's endpoint, which serves the disk: `GET` for inputs, `PUT` for outputs. Each request is signed over the path and the SHA-256 of the body. A `PUT` body goes to a temporary file, is hashed on the way, and reaches the disk only once the signature matches;
 - the temporary storage (`eclair`) keeps outputs for a while, with signed URLs: `Eclair::download()` and `downloadFiles()` copy them to a disk.
 
-## The mediatheque transcoder (planned)
+## The mediatheque driver
 
-`laravel-mediatheque` 2 runs its pipelines through a `Transcoder` contract, and probes media through a `Prober` contract (its [decisions 0005 and 0012](https://github.com/folkloreinc/laravel-mediatheque/tree/v2.x/docs/decisions)). The `eclair` transcoder will send a whole pipeline run as one job, and turn its webhooks into `Recorder` calls; the prober will use `Eclair::probe()`. Both will be built on this client once the contracts exist on the mediatheque's `v2.x` branch. Eclair's side of the mapping is in [`docs/mediatheque.md`](https://github.com/urbania-media/eclair/blob/main/docs/mediatheque.md).
+`laravel-mediatheque` 2 runs its pipelines through a `Transcoder` contract, reports renditions through a `Recorder`, and probes media through a `Prober` (its [decisions 0005 and 0012](https://github.com/folkloreinc/laravel-mediatheque/tree/v2.x/docs/decisions)). `Mediatheque\*` implements them, and only loads when the mediatheque is installed and its provider registered:
+
+| Piece                | Role                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `EclairTranscoder`   | `submit()`: one job per run, a task per rendition. `cancel()` and `refresh()` reconcile the job Eclair returns               |
+| `TaskOptions`        | A rendition's options in Eclair's names, with the `ffmpeg` driver's defaults where Eclair's differ                           |
+| `Reconciler`         | A job snapshot to `Recorder` calls, task by task: started, progress, completed with its files, failed, skipped, canceled     |
+| `ReconcileWebhook`   | Listens to `WebhookReceived`: runs found by the key in the job's `metadata`, pending probes by the job's id                  |
+| `EclairProber`       | `POST /v1/probe`, pending when the probe outlasts its timeout                                                                |
+| `ProbeMetadata`      | Eclair's probe in the mediatheque's keys: snake_case, upright dimensions, an image's EXIF orientation                        |
+
+```
+PipelineRunner ──▶ EclairTranscoder::submit() ──▶ POST /v1/jobs   (metadata: the run's key, Idempotency-Key)
+                                                        │
+Recorder ◀── Reconciler ◀── ReconcileWebhook ◀── task.completed / job.* webhooks (the whole job each time)
+```
+
+Webhooks bring the whole job, in any order and maybe twice. The reconciler skips renditions that already ended, and the recorder ignores calls that would move one back, so an older snapshot changes nothing. A probe webhook that arrives before the mediatheque recorded its job id makes the listener throw: the delivery fails and Eclair sends it again.
+
+The choices that differ from a literal mapping are in [decision 0004](decisions/0004-mediatheque-driver.md). Eclair's side of the mapping is in [`docs/mediatheque.md`](https://github.com/urbania-media/eclair/blob/main/docs/mediatheque.md).

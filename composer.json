@@ -36,14 +36,18 @@
         "nesbot/carbon": "^3.8"
     },
     "require-dev": {
+        "folklore/laravel-mediatheque": "^2.0.0-alpha.11",
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.18",
         "opis/json-schema": "^2.4",
         "orchestra/testbench": "^10.0|^11.0",
         "phpunit/phpunit": "^11.5|^12.0"
     },
+    "conflict": {
+        "folklore/laravel-mediatheque": ">=2.0.0-alpha.1 <2.0.0-alpha.11"
+    },
     "suggest": {
-        "folklore/laravel-mediatheque": "Run the pipelines of laravel-mediatheque 2 on Eclair"
+        "folklore/laravel-mediatheque": "Run the pipelines of laravel-mediatheque 2 (2.0.0-alpha.11 or newer) on Eclair, with the eclair transcoder and prober"
     },
     "autoload": {
         "psr-4": {
