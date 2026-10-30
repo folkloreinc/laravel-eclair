@@ -6,6 +6,7 @@ use Folklore\Eclair\Events\JobCanceled;
 use Folklore\Eclair\Events\JobCompleted;
 use Folklore\Eclair\Events\JobFailed;
 use Folklore\Eclair\Events\TaskCompleted;
+use Folklore\Eclair\Events\TaskProgressed;
 use Folklore\Eclair\Events\WebhookReceived;
 use Folklore\Eclair\Facades\Eclair;
 use Folklore\Eclair\Support\Signature;
@@ -105,6 +106,25 @@ final class WebhookTest extends TestCase
         config(['eclair.webhook.secret' => null]);
         $post($body, $headers)->assertUnauthorized()->assertJson(['detail' => 'ECLAIR_WEBHOOK_SECRET is not set.']);
         Event::assertNotDispatched(WebhookReceived::class);
+    }
+
+    public function test_it_dispatches_the_progress_of_a_task_without_remembering_it(): void
+    {
+        Event::fake();
+        $fake = Eclair::fake();
+        $job = $fake->progressTask(Eclair::jobs()->create(self::REQUEST), 'h264', 0.4);
+
+        // Eclair attempts a task.progress once: nothing to remember, the same delivery is handled again.
+        $this->postEclairWebhook($job, 'task.progress', 'h264', 'whd_1')->assertNoContent();
+        $this->postEclairWebhook($job, 'task.progress', 'h264', 'whd_1')->assertNoContent();
+
+        Event::assertDispatchedTimes(TaskProgressed::class, 2);
+        Event::assertDispatched(TaskProgressed::class, fn (TaskProgressed $event) => $event->task->name === 'h264'
+            && $event->task->progress === 0.4
+            && $event->job->id === $job->id
+            && $event->delivery === 'whd_1');
+        Event::assertDispatched(WebhookReceived::class, fn (WebhookReceived $event) => $event->event === 'task.progress' && $event->task === 'h264');
+        $this->assertFalse(Cache::has('eclair:webhook:whd_1'));
     }
 
     public function test_an_unknown_event_is_only_received(): void

@@ -90,6 +90,10 @@ return [
     | route must be on, with the project's `taskWebhooks` setting to record
     | each rendition as soon as it completes.
     |
+    | `progress` says that the project has the `progressWebhooks` setting: its
+    | `task.progress` webhooks report how far each rendition is while it runs,
+    | and the transcoder tells the mediatheque that progress is pushed.
+    |
     | `prober` makes Eclair probe the media too, instead of the server's own
     | binaries. A probe longer than `probe_timeout` seconds (30 at most)
     | completes with its job's webhook.
@@ -100,6 +104,7 @@ return [
     */
 
     'mediatheque' => [
+        'progress' => (bool) env('ECLAIR_MEDIATHEQUE_PROGRESS', false),
         'prober' => (bool) env('ECLAIR_MEDIATHEQUE_PROBER', false),
         'probe_timeout' => 10,
         'operations' => [],
