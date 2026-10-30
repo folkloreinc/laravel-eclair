@@ -182,7 +182,7 @@ What it needs:
 
 How it maps ([decision 0004](docs/decisions/0004-mediatheque-driver.md)):
 
-- Options are renamed for Eclair (`max_width` → `maxWidth`, `crf` → `quality`, `'128k'` → `128`), and the `ffmpeg` driver's defaults are sent where Eclair's differ (the waveform's size, the thumbnails' times, the poster's time…). Options of Eclair's own (`scenes`, `in_middle`…) pass through.
+- Options are renamed for Eclair (`max_width` → `maxWidth`, `crf` → `quality`, `'128k'` → `128`), and the `ffmpeg` driver's defaults are sent where Eclair's differ (the waveform's size, the thumbnails' times, the poster's time…). Options of Eclair's own (`scenes`, `in_middle`…) pass through, and so do `max_bitrate` and `passthrough` of `video.transcode`, which both drivers know: with `passthrough: true`, a web-ready H.264 upload is copied instead of encoded, and the file's metadata says so (`video` and `audio`: `copied` or `encoded`). `passthrough` needs an Eclair whose `video.transcode` knows it.
 - A rendition whose `when` doesn't match the probed media is skipped at submit time, with those that read from it.
 - Files of a public run are made public once written: Eclair writes them private.
 - `cancel()` cancels the job, and `refresh()` reads it again, for a webhook that never came.
