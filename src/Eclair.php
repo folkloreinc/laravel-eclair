@@ -50,7 +50,7 @@ class Eclair
      *
      * @param  array<string, mixed>  $input  An input of the protocol: `['storage' => …, 'path' => …]`, `['url' => …]` or `['upload' => …]`
      */
-    public function probe(array $input, ?int $timeout = null, bool $checksum = false): ProbeResult
+    public function probe(array $input, ?int $timeout = null, bool $checksum = false, bool $thumbhash = false): ProbeResult
     {
         $request = ['input' => $input];
         if ($timeout !== null) {
@@ -58,6 +58,9 @@ class Eclair
         }
         if ($checksum) {
             $request['checksum'] = true;
+        }
+        if ($thumbhash) {
+            $request['thumbhash'] = true;
         }
 
         return $this->probeResult($this->client()->send('POST', '/v1/probe', json: $request));
@@ -68,11 +71,12 @@ class Eclair
      *
      * @param  mixed  $file  Its contents, a stream, or a file object
      */
-    public function probeFile(mixed $file, ?int $timeout = null, bool $checksum = false): ProbeResult
+    public function probeFile(mixed $file, ?int $timeout = null, bool $checksum = false, bool $thumbhash = false): ProbeResult
     {
         $query = array_filter([
             'timeout' => $timeout,
             'checksum' => $checksum ? 'true' : null,
+            'thumbhash' => $thumbhash ? 'true' : null,
         ], fn ($value) => $value !== null);
 
         return $this->probeResult($this->client()->send(

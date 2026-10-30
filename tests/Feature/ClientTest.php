@@ -163,9 +163,9 @@ final class ClientTest extends TestCase
             'eclair.example.com/v1/probe?*' => Http::response(['metadata' => ['kind' => 'other', 'mime' => 'text/plain']]),
         ]);
 
-        $completed = Eclair::probe(['url' => 'https://cdn.example.com/a.png'], timeout: 5, checksum: true);
+        $completed = Eclair::probe(['url' => 'https://cdn.example.com/a.png'], timeout: 5, checksum: true, thumbhash: true);
         $pending = Eclair::probe(['url' => 'https://cdn.example.com/b.mov']);
-        $file = Eclair::probeFile('hello', checksum: true);
+        $file = Eclair::probeFile('hello', checksum: true, thumbhash: true);
 
         $this->assertFalse($completed->pending());
         $this->assertSame(10, $completed->metadata['width'] ?? null);
@@ -178,9 +178,9 @@ final class ClientTest extends TestCase
             }
             $this->assertMatchesProtocol('ProbeRequest', $request->data());
 
-            return $request['checksum'] === true;
+            return $request['checksum'] === true && $request['thumbhash'] === true;
         });
-        Http::assertSent(fn (Request $request) => $request->url() === 'https://eclair.example.com/v1/probe?checksum=true'
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://eclair.example.com/v1/probe?checksum=true&thumbhash=true'
             && $request->body() === 'hello'
             && $request->hasHeader('Content-Type', 'application/octet-stream'));
     }

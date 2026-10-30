@@ -14,8 +14,8 @@ use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
 
 /**
- * Probes media with Eclair (`POST /v1/probe`), when `eclair.mediatheque.prober` is on. A probe
- * longer than `eclair.mediatheque.probe_timeout` is pending: the mediatheque records the job's id,
+ * Probes media with Eclair (`POST /v1/probe`), when `eclair.mediatheque.prober` is on, with an
+ * image's ThumbHash placeholder (`thumbhash`), as the mediatheque's local prober. A probe longer than `eclair.mediatheque.probe_timeout` is pending: the mediatheque records the job's id,
  * and the job's webhook completes the probe.
  */
 class EclairProber implements Prober
@@ -39,7 +39,12 @@ class EclairProber implements Prober
         }
 
         try {
-            $result = $eclair->probe($input, timeout: min(30, max(1, (int) $this->config->get('eclair.mediatheque.probe_timeout', 10))));
+            $result = $eclair->probe(
+                $input,
+                timeout: min(30, max(1, (int) $this->config->get('eclair.mediatheque.probe_timeout', 10))),
+                // The mediatheque's image placeholder, as its local prober gives one
+                thumbhash: true,
+            );
         } catch (RequestFailed $exception) {
             // The file can't be read, or its type isn't supported: retrying changes nothing
             if ($exception->status === 422) {
