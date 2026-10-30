@@ -124,6 +124,7 @@ Eclair calls `POST /eclair/webhook` when a job ends. The route checks the signat
 | `Folklore\Eclair\Events\JobFailed`    | `job.failed`                                                                  |
 | `Folklore\Eclair\Events\JobCanceled`  | `job.canceled`                                                                |
 | `Folklore\Eclair\Events\TaskCompleted` | `task.completed`, for projects that subscribe to it                          |
+| `Folklore\Eclair\Events\TaskProgressed` | `task.progress`, for projects that subscribe to it. Eclair attempts it once, so the route doesn't remember it, and it can arrive out of order: keep the highest progress, and ignore it for a task that has ended |
 | `Folklore\Eclair\Events\WebhookReceived` | Every verified webhook, first, including events this version doesn't know |
 
 ```php
@@ -179,6 +180,7 @@ What it needs:
 - The disks of the originals and renditions in `eclair.storages`, mapped to storages of the Eclair project. With an S3-compatible disk, the storage is on the same bucket, with the disk's `root` as prefix.
 - The webhook route, reachable by Eclair, and the project's `taskWebhooks` setting on (`eclair projects:update <project> --set taskWebhooks=true`), so each rendition is recorded when it completes instead of when the whole run ends.
 - The operations of the server: Eclair's built-in ones. Add the server's others (plugins) to `eclair.mediatheque.operations`.
+- To show how far each rendition is while it runs, the project's `progressWebhooks` setting on (`eclair projects:update <project> --set progressWebhooks=true`) and `ECLAIR_MEDIATHEQUE_PROGRESS=true`. The `task.progress` webhooks record the progress, at most every `progressWebhookInterval` milliseconds (5000 by default), and the transcoder tells the mediatheque that progress is pushed. Without them, a rendition only moves when it completes.
 
 `ECLAIR_MEDIATHEQUE_PROBER=true` probes the media with Eclair too, so the application's servers need neither ffprobe nor ImageMagick. Images get their ThumbHash placeholder (`thumbhash`), as with the mediatheque's local prober, from an Eclair server that has it (urbania-media/eclair#65). A probe longer than `eclair.mediatheque.probe_timeout` seconds completes with its job's webhook.
 
@@ -221,6 +223,7 @@ class VideoTest extends TestCase
 - Jobs stay pending until the test calls `completeJob()` or `failJob()`. `failJob($job, 'h264', 'timeout')` also fails the tasks that depend on it with `dependency_failed`.
 - A file with `contents` in `completeJob()` is in the temporary storage: `Eclair::download()` reads it.
 - `completeTask($job, 'h264', $outputs)` completes one task while the job keeps running, as with `task.completed` webhooks.
+- `progressTask($job, 'h264', 0.4)` sets a task running at that progress, as with `task.progress` webhooks.
 - `probeReturns($metadata)` sets what probes return, and `probeReturns([], pending: true)` makes them answer with a job.
 - Assertions: `assertJobCreated()`, `assertJobNotCreated()`, `assertNothingCreated()`, `assertJobCount()`, `assertJobCanceled()`, `assertProbed()`, `assertUploaded()`, `assertPresetSaved()`.
 - `postEclairWebhook($job, $event = null, $task = null)` sends a signed webhook to your route.

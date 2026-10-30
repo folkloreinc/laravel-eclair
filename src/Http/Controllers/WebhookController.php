@@ -7,6 +7,7 @@ use Folklore\Eclair\Events\JobCanceled;
 use Folklore\Eclair\Events\JobCompleted;
 use Folklore\Eclair\Events\JobFailed;
 use Folklore\Eclair\Events\TaskCompleted;
+use Folklore\Eclair\Events\TaskProgressed;
 use Folklore\Eclair\Events\WebhookReceived;
 use Folklore\Eclair\Http\Problem;
 use Folklore\Eclair\Support\Signature;
@@ -22,8 +23,10 @@ use ValueError;
 
 /**
  * Receives Eclair's webhooks: checks the signature, ignores deliveries it already handled, and
- * dispatches `WebhookReceived`, then `JobCompleted`, `JobFailed`, `JobCanceled` or
- * `TaskCompleted`. A listener that throws makes the request fail, and Eclair delivers it again.
+ * dispatches `WebhookReceived`, then `JobCompleted`, `JobFailed`, `JobCanceled`, `TaskCompleted`
+ * or `TaskProgressed`. A listener that throws makes the request fail, and Eclair delivers it
+ * again, except a `task.progress`, which Eclair attempts once: those deliveries are not
+ * remembered either.
  */
 final class WebhookController
 {
@@ -55,6 +58,18 @@ final class WebhookController
             return Problem::response(400, 'Not a job of Eclair');
         }
 
+        $task = $request->header('Eclair-Task');
+        $task = is_string($task) && $task !== '' ? $task : null;
+        if ($event === 'task.progress') {
+            $events->dispatch(new WebhookReceived($event, $job, $delivery, $task));
+            $progressed = $task === null ? null : $job->task($task);
+            if ($progressed !== null) {
+                $events->dispatch(new TaskProgressed($job, $progressed, $delivery));
+            }
+
+            return new Response(null, 204);
+        }
+
         $store = $cache->store($config->get('eclair.webhook.cache'));
         $key = 'eclair:webhook:'.$delivery;
         // Another request handles the same delivery: Eclair delivers it again later.
@@ -70,8 +85,6 @@ final class WebhookController
             if ($store->has($key)) {
                 return new Response(null, 204);
             }
-            $task = $request->header('Eclair-Task');
-            $task = is_string($task) && $task !== '' ? $task : null;
             $events->dispatch(new WebhookReceived($event, $job, $delivery, $task));
             $completed = $task === null ? null : $job->task($task);
             $specific = match ($event) {

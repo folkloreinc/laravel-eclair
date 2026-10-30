@@ -59,7 +59,10 @@ class EclairTranscoder implements Transcoder
 
     public function capabilities(): Capabilities
     {
-        return new Capabilities(progress: ProgressReporting::None, cancel: true, refresh: true, probe: true);
+        // Progress comes with the `task.progress` webhooks, for projects that subscribe to them
+        $progress = $this->config->get('eclair.mediatheque.progress') === true ? ProgressReporting::Pushed : ProgressReporting::None;
+
+        return new Capabilities(progress: $progress, cancel: true, refresh: true, probe: true);
     }
 
     public function submit(PipelineRun $run): ?string

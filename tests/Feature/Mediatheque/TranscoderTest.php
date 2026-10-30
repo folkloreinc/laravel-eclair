@@ -10,6 +10,7 @@ use Folklore\Eclair\Tests\MediathequeTestCase;
 use Folklore\Eclair\Tests\ValidatesProtocol;
 use Folklore\Mediatheque\Enums\JobStatus;
 use Folklore\Mediatheque\Enums\PipelineStatus;
+use Folklore\Mediatheque\Enums\ProgressReporting;
 use Folklore\Mediatheque\Models\Media;
 use Folklore\Mediatheque\Models\PipelineRun;
 use Folklore\Mediatheque\Pipelines\PipelineRunner;
@@ -152,6 +153,26 @@ final class TranscoderTest extends MediathequeTestCase
         $this->assertSame(JobStatus::Completed, $run->job('thumbnails')?->status());
     }
 
+    public function test_progress_webhooks_record_the_progress_of_a_rendition(): void
+    {
+        $fake = Eclair::fake();
+        $run = $this->run_($this->video());
+        $job = $fake->progressTask($run->externalId() ?? '', 'h264', 0.5);
+
+        $this->postEclairWebhook($job, 'task.progress', 'h264')->assertNoContent();
+
+        $h264 = $run->refresh()->job('h264');
+        $this->assertNotNull($h264);
+        $this->assertSame(JobStatus::Running, $h264->status());
+        $this->assertSame(0.5, $h264->progress());
+
+        // A progress that comes after the rendition completed changes nothing.
+        $completed = $fake->completeTask($job, 'h264');
+        $this->postEclairWebhook($completed, 'task.completed', 'h264')->assertNoContent();
+        $this->postEclairWebhook($job, 'task.progress', 'h264')->assertNoContent();
+        $this->assertSame(JobStatus::Completed, $run->refresh()->job('h264')?->status());
+    }
+
     public function test_public_runs_make_their_files_public(): void
     {
         $fake = Eclair::fake();
@@ -194,6 +215,16 @@ final class TranscoderTest extends MediathequeTestCase
         config(['eclair.mediatheque.operations' => ['ai.transcribe']]);
         $this->assertTrue($transcoder->supports('ai.transcribe'));
         $this->assertTrue($transcoder->capabilities()->cancel);
+    }
+
+    public function test_progress_is_pushed_when_the_project_sends_progress_webhooks(): void
+    {
+        $transcoder = app(TranscoderManager::class)->driver('eclair');
+        $this->assertSame(ProgressReporting::None, $transcoder->capabilities()->progress);
+
+        config(['eclair.mediatheque.progress' => true]);
+
+        $this->assertSame(ProgressReporting::Pushed, $transcoder->capabilities()->progress);
     }
 
     public function test_a_webhook_for_a_deleted_run_is_accepted(): void

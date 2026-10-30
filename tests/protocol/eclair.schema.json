@@ -780,7 +780,8 @@
                 "job.completed",
                 "job.failed",
                 "job.canceled",
-                "task.completed"
+                "task.completed",
+                "task.progress"
             ]
         },
         "Signature": {
@@ -1136,6 +1137,17 @@
                     "description": "Sends a `task.completed` webhook for each task, besides the job's.",
                     "type": "boolean",
                     "default": false
+                },
+                "progressWebhooks": {
+                    "description": "Sends a `task.progress` webhook while each task runs, besides the job's.",
+                    "type": "boolean",
+                    "default": false
+                },
+                "progressWebhookInterval": {
+                    "description": "The shortest time between two `task.progress` webhooks of a task, in milliseconds.",
+                    "type": "integer",
+                    "minimum": 1000,
+                    "default": 5000
                 }
             }
         },

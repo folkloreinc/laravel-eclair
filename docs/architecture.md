@@ -71,7 +71,7 @@ Eclair reads and writes files on the project's storages, each registered in Ecla
 ```
 PipelineRunner ──▶ EclairTranscoder::submit() ──▶ POST /v1/jobs   (metadata: the run's key, Idempotency-Key)
                                                         │
-Recorder ◀── Reconciler ◀── ReconcileWebhook ◀── task.completed / job.* webhooks (the whole job each time)
+Recorder ◀── Reconciler ◀── ReconcileWebhook ◀── task.completed / task.progress / job.* webhooks (the whole job each time)
 ```
 
 Webhooks bring the whole job, in any order and maybe twice. The reconciler skips renditions that already ended, and the recorder ignores calls that would move one back, so an older snapshot changes nothing. A probe webhook that arrives before the mediatheque recorded its job id makes the listener throw: the delivery fails and Eclair sends it again.
