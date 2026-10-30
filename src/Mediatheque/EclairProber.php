@@ -41,7 +41,7 @@ class EclairProber implements Prober
         try {
             $result = $eclair->probe(
                 $input,
-                timeout: min(30, max(1, (int) $this->config->get('eclair.mediatheque.probe_timeout', 10))),
+                timeout: self::timeout($this->config),
                 // The mediatheque's image placeholder, as its local prober gives one
                 thumbhash: true,
             );
@@ -64,5 +64,15 @@ class EclairProber implements Prober
         }
 
         return ProbeOutcome::done(ProbeMetadata::canonical($result->metadata ?? []));
+    }
+
+    /**
+     * The seconds Eclair waits for a probe before answering `202` with its job.
+     *
+     * @internal
+     */
+    public static function timeout(Config $config): int
+    {
+        return min(30, max(1, (int) $config->get('eclair.mediatheque.probe_timeout', 10)));
     }
 }

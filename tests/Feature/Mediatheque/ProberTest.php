@@ -2,6 +2,8 @@
 
 namespace Folklore\Eclair\Tests\Feature\Mediatheque;
 
+use Carbon\CarbonImmutable;
+use Folklore\Eclair\Data\Job;
 use Folklore\Eclair\Facades\Eclair;
 use Folklore\Eclair\Mediatheque\EclairProber;
 use Folklore\Eclair\Tests\MediathequeTestCase;
@@ -78,6 +80,35 @@ final class ProberTest extends MediathequeTestCase
         $this->assertEquals(40, $media->metadata('duration'));
         $this->assertSame('processing', $media->status()->value);
         $fake->assertJobCreated(fn (array $request) => ($request['metadata']['mediatheque']['pipeline'] ?? null) === 'video');
+    }
+
+    public function test_the_webhook_of_a_probe_that_answered_in_time_is_ignored(): void
+    {
+        Eclair::fake()->probeReturns(['kind' => 'video', 'mime' => 'video/mp4', 'duration' => 12.5]);
+        $media = $this->video(['status' => 'pending', 'metadata' => []]);
+
+        dispatch_sync(new ProbeMedia($media->id));
+
+        $probe = PipelineRun::query()->where('name', 'probe')->firstOrFail();
+        $this->assertSame(PipelineStatus::Completed, $probe->status());
+        $this->assertNull($probe->externalId());
+
+        // Eclair answered with the metadata, and still sends the probe job's webhook
+        $now = CarbonImmutable::now();
+        $job = Job::fromArray([
+            'id' => 'job_01JA2Y8C6W4N5V7TQ3H9XK0B2M',
+            'status' => 'completed',
+            'createdAt' => $now->subMilliseconds(400)->toIso8601ZuluString('millisecond'),
+            'startedAt' => $now->subMilliseconds(300)->toIso8601ZuluString('millisecond'),
+            'endedAt' => $now->toIso8601ZuluString('millisecond'),
+            'input' => ['storage' => 'media', 'path' => 'interview.mp4'],
+            'metadata' => [],
+            'tasks' => ['probe' => ['status' => 'completed', 'op' => 'probe@1', 'outputs' => ['metadata' => ['kind' => 'video', 'mime' => 'video/mp4', 'duration' => 12.5]]]],
+        ]);
+        $this->postEclairWebhook($job)->assertNoContent();
+
+        $this->assertSame(PipelineStatus::Completed, $probe->refresh()->status());
+        $this->assertEquals(12.5, $media->refresh()->metadata('duration'));
     }
 
     public function test_a_probe_webhook_before_the_job_id_is_recorded_is_delivered_again(): void
