@@ -15,10 +15,24 @@ use Folklore\Mediatheque\Pipelines\Rendition;
  * Options the mediatheque doesn't know (Eclair's own, such as `in_middle` or `scenes`) are passed
  * through, in camelCase.
  *
+ * The operations that write images ask for the ThumbHash placeholder of each file, which the
+ * `ffmpeg` driver reads from its probe of the file: a rendition can turn it off with
+ * `thumbhash: false`.
+ *
  * @internal
  */
 final class TaskOptions
 {
+    /** The operations that write images, whose files get a ThumbHash placeholder. */
+    private const array IMAGE_OPERATIONS = [
+        'video.poster',
+        'video.thumbnails',
+        'audio.waveform',
+        'document.thumbnails',
+        'image.convert',
+        'image.thumbnail',
+    ];
+
     /**
      * @param  float|null  $duration  The duration of the input, in seconds, from its probe
      * @return array<string, mixed>
@@ -36,6 +50,9 @@ final class TaskOptions
             'image.convert' => self::imageConvert($options),
             default => $options,
         };
+        if (in_array($rendition->operation, self::IMAGE_OPERATIONS, true)) {
+            $options['thumbhash'] ??= true;
+        }
 
         return self::camelKeys($options);
     }

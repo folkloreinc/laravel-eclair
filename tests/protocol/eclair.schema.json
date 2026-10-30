@@ -402,6 +402,12 @@
                     "type": "string",
                     "pattern": "^[0-9a-f]{64}$"
                 },
+                "thumbhash": {
+                    "description": "A ThumbHash placeholder (https://evanw.github.io/thumbhash/) of an image file, in base64, when the task asked for it (the `thumbhash` option of the operations that write images): its first frame, upright, in sRGB, fitted in 100×100, as `ProbeMetadata.thumbhash` gives it. Missing when the file can't be decoded.",
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "maxLength": 64
+                },
                 "role": {
                     "description": "What the file is for, when a task writes several: `main`, `thumbnail`, `segment`…",
                     "type": "string"

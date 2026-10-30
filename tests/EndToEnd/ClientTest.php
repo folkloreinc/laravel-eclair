@@ -56,7 +56,7 @@ final class ClientTest extends EndToEndTestCase
             'output' => ['storage' => 'eclair', 'prefix' => 'e2e/'],
             'tasks' => [
                 'probe' => ['op' => 'probe'],
-                'webp' => ['op' => 'image.convert', 'options' => ['format' => 'webp']],
+                'webp' => ['op' => 'image.convert', 'options' => ['format' => 'webp', 'thumbhash' => true]],
             ],
             'metadata' => ['run' => $run],
         ]);
@@ -70,6 +70,7 @@ final class ClientTest extends EndToEndTestCase
         $this->assertNotNull($webp);
         $this->assertSame('image/webp', $webp->mime);
         $this->assertNotNull($webp->url);
+        $this->assertMatchesRegularExpression('#^[A-Za-z0-9+/]+={0,2}$#', (string) $webp->thumbhash, 'The placeholder of the image.');
 
         $this->assertSame([$job->id], array_map(
             fn ($job) => $job->id,
