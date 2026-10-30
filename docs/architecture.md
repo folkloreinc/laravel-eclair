@@ -74,6 +74,6 @@ PipelineRunner ──▶ EclairTranscoder::submit() ──▶ POST /v1/jobs   (m
 Recorder ◀── Reconciler ◀── ReconcileWebhook ◀── task.completed / task.progress / job.* webhooks (the whole job each time)
 ```
 
-Webhooks bring the whole job, in any order and maybe twice. The reconciler skips renditions that already ended, and the recorder ignores calls that would move one back, so an older snapshot changes nothing. A probe webhook that arrives before the mediatheque recorded its job id makes the listener throw: the delivery fails and Eclair sends it again.
+Webhooks bring the whole job, in any order and maybe twice. The reconciler skips renditions that already ended, and the recorder ignores calls that would move one back, so an older snapshot changes nothing. Every probe is a job with a webhook, even one that Eclair answered with its result: a probe job that ended within `eclair.mediatheque.probe_timeout` of its creation has nothing waiting for it, and its webhook is ignored. A longer probe answered `202`, and its webhook can arrive before the mediatheque recorded its job id: the listener throws, the delivery fails and Eclair sends it again.
 
 The choices that differ from a literal mapping are in [decision 0004](decisions/0004-mediatheque-driver.md). Eclair's side of the mapping is in [`docs/mediatheque.md`](https://github.com/urbania-media/eclair/blob/main/docs/mediatheque.md).

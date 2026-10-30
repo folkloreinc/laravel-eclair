@@ -99,7 +99,7 @@ class EclairFake extends Eclair
 
     /**
      * The metadata that probes return. With `pending`, a probe answers with a job instead, as when
-     * it takes longer than its timeout.
+     * it takes longer than its timeout, created that many seconds ago.
      *
      * @param  array<string, mixed>  $metadata
      */
@@ -575,12 +575,16 @@ class EclairFake extends Eclair
         $raw = ! $request->isJson();
         $this->probes[] = $raw ? ['file' => $request->body()] : $json;
         if ($this->probePending) {
+            // Eclair answers `202` once it waited the probe's timeout: the job is that old
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+            $timeout = $raw ? ($query['timeout'] ?? 10) : ($json['timeout'] ?? 10);
+            $created = self::now(CarbonImmutable::now()->subSeconds(is_numeric($timeout) ? (int) $timeout : 10));
             $id = self::newId('job');
             $this->jobs[$id] = [
                 'id' => $id,
                 'status' => 'running',
-                'createdAt' => self::now(),
-                'startedAt' => self::now(),
+                'createdAt' => $created,
+                'startedAt' => $created,
                 'input' => $json['input'] ?? ['upload' => self::newId('upl')],
                 'metadata' => new stdClass,
                 'tasks' => ['probe' => ['status' => 'running', 'op' => 'probe@1', 'startedAt' => self::now()]],
