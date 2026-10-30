@@ -7,7 +7,8 @@ use Carbon\CarbonImmutable;
 /**
  * A file written by a task. Files of the temporary storage (`eclair`) have a signed `url` until
  * they expire. A file of a group (HLS, thumbnails) reports the `count` of the other files: list
- * them all with `Eclair::jobs()->files()`.
+ * them all with `Eclair::jobs()->files()`. An image file has its ThumbHash placeholder (`thumbhash`,
+ * in base64) when its task asked for it.
  */
 final readonly class OutputFile
 {
@@ -26,6 +27,7 @@ final readonly class OutputFile
         public ?CarbonImmutable $expiresAt = null,
         public bool $expired = false,
         public ?string $task = null,
+        public ?string $thumbhash = null,
         private array $attributes = [],
     ) {}
 
@@ -46,6 +48,7 @@ final readonly class OutputFile
             expiresAt: Dates::read($data['expiresAt'] ?? null),
             expired: ($data['expired'] ?? false) === true,
             task: isset($data['task']) ? (string) $data['task'] : null,
+            thumbhash: isset($data['thumbhash']) ? (string) $data['thumbhash'] : null,
             attributes: $data,
         );
     }

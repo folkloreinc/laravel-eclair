@@ -23,6 +23,9 @@ final class TranscoderTest extends MediathequeTestCase
 {
     use ValidatesProtocol;
 
+    /** ThumbHashes of the thumbnails, in base64. */
+    private const array THUMBHASHES = ['1QcSHQRnh493V4dIh4eXh1h4kJUI', '3OcRJYB4d3h/iIeHeEh3eIhw+j3A', 'IQgSLYZ6iHePh0h1eFeHh4dwgwg3', 'YJqGPQw7sFlslqhFafSE+Q6oJ1h2'];
+
     private function run_(Media $media): PipelineRun
     {
         $run = app(PipelineRunner::class)->run($media);
@@ -48,8 +51,8 @@ final class TranscoderTest extends MediathequeTestCase
             $this->assertSame(['run' => $run->key(), 'media' => $media->uid, 'pipeline' => 'video'], $request['metadata']['mediatheque']);
             $this->assertSame([
                 'h264' => ['op' => 'video.transcode', 'options' => ['maxWidth' => 1920, 'quality' => 23, 'audioBitrate' => 128]],
-                'poster' => ['op' => 'video.poster', 'options' => ['time' => 10, 'maxWidth' => 1920], 'from' => 'h264'],
-                'thumbnails' => ['op' => 'video.thumbnails', 'options' => ['times' => [12.5, 37.5, 62.5, 87.5], 'maxWidth' => 1920]],
+                'poster' => ['op' => 'video.poster', 'options' => ['time' => 10, 'maxWidth' => 1920, 'thumbhash' => true], 'from' => 'h264'],
+                'thumbnails' => ['op' => 'video.thumbnails', 'options' => ['times' => [12.5, 37.5, 62.5, 87.5], 'maxWidth' => 1920, 'thumbhash' => true]],
             ], $request['tasks']);
 
             return true;
@@ -111,13 +114,13 @@ final class TranscoderTest extends MediathequeTestCase
         $this->assertSame([1920, 1080, 100.0, 4000000], [$file->width(), $file->height(), $file->duration(), $file->bitrate()]);
         $this->assertSame(['copied', 'encoded'], [$file->metadata('video'), $file->metadata('audio')], 'Whether video.transcode copied or encoded each stream.');
 
-        $thumbnails = array_map(fn (int $index) => ['name' => (string) $index, 'path' => $prefix.'/thumbnails/'.$index.'.jpg', 'mime' => 'image/jpeg', 'size' => 1], range(0, 3));
+        $thumbnails = array_map(fn (int $index) => ['name' => (string) $index, 'path' => $prefix.'/thumbnails/'.$index.'.jpg', 'mime' => 'image/jpeg', 'size' => 1, 'thumbhash' => self::THUMBHASHES[$index]], range(0, 3));
         foreach ($thumbnails as $thumbnail) {
             Storage::disk('s3')->put($thumbnail['path'], 't');
         }
         Storage::disk('s3')->put($prefix.'/poster/poster.jpg', 'p');
         $job = $fake->completeJob($job, [
-            'poster' => ['files' => [['name' => 'poster', 'path' => $prefix.'/poster/poster.jpg', 'mime' => 'image/jpeg', 'size' => 1, 'role' => 'poster']]],
+            'poster' => ['files' => [['name' => 'poster', 'path' => $prefix.'/poster/poster.jpg', 'mime' => 'image/jpeg', 'size' => 1, 'role' => 'poster', 'thumbhash' => '1QcSHQRnh493V4dIh4eXh1h4kJUI']]],
             'thumbnails' => ['files' => $thumbnails, 'metadata' => ['width' => 1920, 'height' => 1080]],
         ]);
         $this->postEclairWebhook($job)->assertNoContent();
@@ -126,6 +129,9 @@ final class TranscoderTest extends MediathequeTestCase
         $this->assertSame(PipelineStatus::Completed, $run->status());
         $this->assertSame([0, 1, 2, 3], $media->refresh()->files('thumbnails')->map(fn ($file) => $file->index())->values()->all());
         $this->assertSame('poster', $media->file('poster')?->role());
+        $this->assertSame('1QcSHQRnh493V4dIh4eXh1h4kJUI', $media->file('poster')->metadata('thumbhash'), 'The placeholder of each image file, as the ffmpeg driver keeps it.');
+        $this->assertSame(self::THUMBHASHES, $media->files('thumbnails')->map(fn ($file) => $file->metadata('thumbhash'))->values()->all());
+        $this->assertNull($media->file('h264')?->metadata('thumbhash'));
         $this->assertSame('ready', $media->status()->value);
     }
 

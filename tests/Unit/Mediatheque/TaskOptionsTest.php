@@ -34,10 +34,10 @@ final class TaskOptionsTest extends TestCase
 
     public function test_poster_and_thumbnails_are_at_the_mediatheques_times(): void
     {
-        $this->assertSame(['time' => 3.0, 'maxWidth' => 1920], self::options(['op' => 'video.poster'], 30.0));
-        $this->assertSame(['maxWidth' => 640], self::options(['op' => 'video.poster', 'max_width' => 640]));
-        $this->assertSame(['times' => [5.0, 15.0], 'maxWidth' => 1920], self::options(['op' => 'video.thumbnails', 'count' => 2], 20.0));
-        $this->assertSame(['count' => 8, 'scenes' => true, 'maxWidth' => 1920], self::options(['op' => 'video.thumbnails', 'count' => 8, 'scenes' => true], 20.0));
+        $this->assertSame(['time' => 3.0, 'maxWidth' => 1920, 'thumbhash' => true], self::options(['op' => 'video.poster'], 30.0));
+        $this->assertSame(['maxWidth' => 640, 'thumbhash' => true], self::options(['op' => 'video.poster', 'max_width' => 640]));
+        $this->assertSame(['times' => [5.0, 15.0], 'maxWidth' => 1920, 'thumbhash' => true], self::options(['op' => 'video.thumbnails', 'count' => 2], 20.0));
+        $this->assertSame(['count' => 8, 'scenes' => true, 'maxWidth' => 1920, 'thumbhash' => true], self::options(['op' => 'video.thumbnails', 'count' => 8, 'scenes' => true], 20.0));
     }
 
     public function test_audio_and_images(): void
@@ -45,10 +45,19 @@ final class TaskOptionsTest extends TestCase
         $this->assertSame(['codec' => 'mp3'], self::options(['op' => 'audio.transcode']));
         $this->assertSame(['codec' => 'aac', 'bitrate' => 128], self::options(['op' => 'audio.transcode', 'codec' => 'aac']));
         $this->assertSame(
-            ['color' => 'ff0000', 'backgroundColor' => 'ffffff', 'data' => false, 'width' => 1200, 'height' => 240],
+            ['color' => 'ff0000', 'backgroundColor' => 'ffffff', 'data' => false, 'width' => 1200, 'height' => 240, 'thumbhash' => true],
             self::options(['op' => 'audio.waveform', 'color' => '#ff0000', 'background_color' => '#ffffff']),
         );
-        $this->assertSame(['format' => 'jpeg', 'quality' => 85], self::options(['op' => 'image.convert']));
+        $this->assertSame(['format' => 'jpeg', 'quality' => 85, 'thumbhash' => true], self::options(['op' => 'image.convert']));
+    }
+
+    public function test_the_operations_that_write_images_ask_for_a_thumbhash_unless_turned_off(): void
+    {
+        $this->assertSame(['thumbhash' => true], self::options(['op' => 'document.thumbnails']));
+        $this->assertSame(['sizes' => [['width' => 320]], 'thumbhash' => true], self::options(['op' => 'image.thumbnail', 'sizes' => [['width' => 320]]]));
+        $this->assertSame(['thumbhash' => false, 'format' => 'jpeg', 'quality' => 85], self::options(['op' => 'image.convert', 'thumbhash' => false]));
+        $this->assertArrayNotHasKey('thumbhash', self::options(['op' => 'video.transcode']));
+        $this->assertArrayNotHasKey('thumbhash', self::options(['op' => 'image.palette']));
     }
 
     public function test_other_operations_only_get_camel_case_names(): void

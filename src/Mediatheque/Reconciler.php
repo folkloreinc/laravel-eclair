@@ -9,6 +9,7 @@ use Folklore\Mediatheque\Contracts\Models\PipelineJob;
 use Folklore\Mediatheque\Contracts\Models\PipelineRun;
 use Folklore\Mediatheque\Contracts\Recorder;
 use Folklore\Mediatheque\Enums\Visibility;
+use Folklore\Mediatheque\Metadata\MetadataKey;
 use Folklore\Mediatheque\Pipelines\OutputFile;
 use Folklore\Mediatheque\Pipelines\Outputs;
 use Folklore\Mediatheque\Pipelines\PipelineDefinition;
@@ -91,6 +92,8 @@ class Reconciler
                 duration: is_int($metadata['duration'] ?? null) || is_float($metadata['duration'] ?? null) ? (float) $metadata['duration'] : null,
                 bitrate: self::integer($metadata['bitrate'] ?? null),
                 partsCount: $file->count,
+                // An image's placeholder, as the ffmpeg driver keeps it from its probe
+                metadata: $file->thumbhash === null ? [] : [MetadataKey::Thumbhash->value => $file->thumbhash],
             );
         }
 
