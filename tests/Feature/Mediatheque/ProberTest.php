@@ -41,7 +41,7 @@ final class ProberTest extends MediathequeTestCase
         $this->assertSame(1080, $outcome->metadata['width']);
         $this->assertSame(1920, $outcome->metadata['height']);
         $this->assertSame(30, $outcome->metadata['frame_rate']);
-        $fake->assertProbed(fn (array $request) => $request['input'] === ['storage' => 'media', 'path' => $original->path()] && $request['timeout'] === 10);
+        $fake->assertProbed(fn (array $request) => $request['input'] === ['storage' => 'media', 'path' => $original->path()] && $request['timeout'] === 10 && $request['thumbhash'] === true);
     }
 
     public function test_a_file_eclair_cannot_read_fails_the_probe(): void

@@ -784,7 +784,7 @@
             ]
         },
         "Signature": {
-            "description": "`t=<unix time>,v1=<hex HMAC-SHA256>`. Several `v1` values can follow: the signature is valid if one of them matches.",
+            "description": "`t=<unix time>,v1=<hex HMAC-SHA256>`. Several `v1` values can follow, one per valid secret of the project (the current one first, then the previous one during the grace period of a rotation): the signature is valid if one of them matches.",
             "type": "string",
             "pattern": "^t=[0-9]+(,v1=[0-9a-f]{64})+$"
         },
@@ -991,6 +991,12 @@
                     "description": "A summary of the EXIF data. GPS data is never included.",
                     "type": "object",
                     "additionalProperties": true
+                },
+                "thumbhash": {
+                    "description": "A ThumbHash placeholder (https://evanw.github.io/thumbhash/) of an image other than SVG, in base64, when asked for: its first frame, upright, in sRGB, fitted in 100×100. Missing when the image can't be decoded.",
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "maxLength": 64
                 }
             }
         },
@@ -1013,6 +1019,11 @@
                 },
                 "checksum": {
                     "description": "Add a SHA-256 of the whole file. It reads all of it, so it can take longer.",
+                    "type": "boolean",
+                    "default": false
+                },
+                "thumbhash": {
+                    "description": "Add a ThumbHash placeholder of an image other than SVG. It decodes the image, so it can take longer.",
                     "type": "boolean",
                     "default": false
                 }
@@ -1279,6 +1290,23 @@
             "properties": {
                 "webhookSecret": {
                     "type": "string"
+                },
+                "previousSecretExpiresAt": {
+                    "description": "Set while the previous secret is in its grace period after a rotation: when it expires. Until then, Eclair signs with both secrets.",
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "WebhookSecretRotation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "grace": {
+                    "description": "Seconds the previous secret stays valid, at most 7 days. 86400 (24 hours) when not set; `0` drops it at once.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 604800
                 }
             }
         },

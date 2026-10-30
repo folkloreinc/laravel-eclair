@@ -100,6 +100,8 @@ if ($result->pending()) {
 }
 ```
 
+`checksum: true` adds a SHA-256 of the whole file, and `thumbhash: true` a ThumbHash placeholder of an image.
+
 ## Uploads
 
 For files Eclair can't read, send them to its temporary storage:
@@ -178,7 +180,7 @@ What it needs:
 - The webhook route, reachable by Eclair, and the project's `taskWebhooks` setting on (`eclair projects:update <project> --set taskWebhooks=true`), so each rendition is recorded when it completes instead of when the whole run ends.
 - The operations of the server: Eclair's built-in ones. Add the server's others (plugins) to `eclair.mediatheque.operations`.
 
-`ECLAIR_MEDIATHEQUE_PROBER=true` probes the media with Eclair too, so the application's servers need neither ffprobe nor ImageMagick. A probe longer than `eclair.mediatheque.probe_timeout` seconds completes with its job's webhook.
+`ECLAIR_MEDIATHEQUE_PROBER=true` probes the media with Eclair too, so the application's servers need neither ffprobe nor ImageMagick. Images get their ThumbHash placeholder (`thumbhash`), as with the mediatheque's local prober, from an Eclair server that has it (urbania-media/eclair#65). A probe longer than `eclair.mediatheque.probe_timeout` seconds completes with its job's webhook.
 
 How it maps ([decision 0004](docs/decisions/0004-mediatheque-driver.md)):
 

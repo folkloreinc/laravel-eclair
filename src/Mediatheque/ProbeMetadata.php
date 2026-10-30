@@ -10,7 +10,9 @@ use Folklore\Mediatheque\Metadata\MetadataKey;
  *
  * - `width` and `height` are upright: swapped for a file rotated by 90° or 270°;
  * - an image has an EXIF `orientation` (1 to 8) instead of a `rotation`, which the mediatheque
- *   keeps for videos.
+ *   keeps for videos. It is the EXIF tag when the tag agrees with Eclair's `rotation`, which is
+ *   what the decoder applies: a HEIC or HEIF image is turned by its container, which libheif
+ *   applies, so its EXIF tag (6 for most phone photos) no longer applies once decoded.
  *
  * @internal
  */
@@ -18,6 +20,9 @@ final class ProbeMetadata
 {
     /** The EXIF orientation of each clockwise rotation, without mirroring. */
     private const array ORIENTATIONS = [0 => 1, 90 => 6, 180 => 3, 270 => 8];
+
+    /** The clockwise rotation of each EXIF orientation, mirrored or not. */
+    private const array ROTATIONS = [1 => 0, 2 => 0, 3 => 180, 4 => 180, 5 => 90, 6 => 90, 7 => 270, 8 => 270];
 
     /**
      * @param  array<string, mixed>  $metadata
@@ -35,9 +40,9 @@ final class ProbeMetadata
 
         if (($metadata['kind'] ?? null) === 'image') {
             $exif = is_array($metadata['exif'] ?? null) ? $metadata['exif'] : [];
-            $orientation = $exif['Orientation'] ?? null;
-            $metadata['orientation'] = is_numeric($orientation) && (int) $orientation >= 1 && (int) $orientation <= 8
-                ? (int) $orientation
+            $orientation = is_numeric($exif['Orientation'] ?? null) ? (int) $exif['Orientation'] : null;
+            $metadata['orientation'] = $orientation !== null && (self::ROTATIONS[$orientation] ?? null) === $rotation
+                ? $orientation
                 : (self::ORIENTATIONS[$rotation] ?? 1);
             unset($metadata['rotation']);
         }

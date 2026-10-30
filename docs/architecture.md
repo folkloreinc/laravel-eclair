@@ -66,7 +66,7 @@ Eclair reads and writes files on the project's storages, each registered in Ecla
 | `Reconciler`         | A job snapshot to `Recorder` calls, task by task: started, progress, completed with its files, failed, skipped, canceled     |
 | `ReconcileWebhook`   | Listens to `WebhookReceived`: runs found by the key in the job's `metadata`, pending probes by the job's id                  |
 | `EclairProber`       | `POST /v1/probe`, pending when the probe outlasts its timeout                                                                |
-| `ProbeMetadata`      | Eclair's probe in the mediatheque's keys: snake_case, upright dimensions, an image's EXIF orientation                        |
+| `ProbeMetadata`      | Eclair's probe in the mediatheque's keys: snake_case, upright dimensions, an image's EXIF orientation as decoded             |
 
 ```
 PipelineRunner ──▶ EclairTranscoder::submit() ──▶ POST /v1/jobs   (metadata: the run's key, Idempotency-Key)
