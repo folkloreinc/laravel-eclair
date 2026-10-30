@@ -24,6 +24,14 @@ final class TaskOptionsTest extends TestCase
         $this->assertSame(['audioBitrate' => 192, 'quality' => 20], self::options(['op' => 'video.transcode', 'crf' => 20, 'audio_bitrate' => '192k']));
     }
 
+    public function test_video_transcode_passes_the_passthrough_and_the_maximum_bitrate(): void
+    {
+        $this->assertSame(
+            ['maxWidth' => 1920, 'passthrough' => true, 'maxBitrate' => 5000, 'quality' => 23, 'audioBitrate' => 128],
+            self::options(['op' => 'video.transcode', 'max_width' => 1920, 'passthrough' => true, 'max_bitrate' => 5000]),
+        );
+    }
+
     public function test_poster_and_thumbnails_are_at_the_mediatheques_times(): void
     {
         $this->assertSame(['time' => 3.0, 'maxWidth' => 1920], self::options(['op' => 'video.poster'], 30.0));

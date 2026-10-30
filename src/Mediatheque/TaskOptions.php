@@ -42,7 +42,12 @@ final class TaskOptions
 
     /**
      * H.264 with a CRF of 23 or VP9 with 32, and AAC or Opus audio at 128 or 96 kbit/s. `preset`
-     * only exists in ffmpeg's x264: Eclair chooses its own.
+     * only exists in ffmpeg's x264: Eclair uses `medium`, the driver's default.
+     *
+     * Both drivers share the rest of H.264's defaults (High profile, a keyframe every 2 seconds, a
+     * maximum bitrate from the output's size) and the options `max_bitrate` and `passthrough`,
+     * which pass as they are. Each reports whether it copied or encoded the video and the audio
+     * in the metadata of the file (`video` and `audio`).
      *
      * @param  array<string, mixed>  $options
      * @return array<string, mixed>

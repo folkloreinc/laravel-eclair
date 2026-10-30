@@ -96,7 +96,7 @@ final class TranscoderTest extends MediathequeTestCase
         Storage::disk('s3')->put($prefix.'/h264/video.mp4', 'video');
         $job = $fake->completeTask($run->externalId() ?? '', 'h264', [
             'files' => [['name' => 'video', 'path' => $prefix.'/h264/video.mp4', 'mime' => 'video/mp4', 'size' => 5]],
-            'metadata' => ['width' => 1920, 'height' => 1080, 'duration' => 100.0, 'bitrate' => 4000000],
+            'metadata' => ['width' => 1920, 'height' => 1080, 'duration' => 100.0, 'bitrate' => 4000000, 'video' => 'copied', 'audio' => 'encoded'],
         ]);
 
         $this->postEclairWebhook($job, 'task.completed', 'h264')->assertNoContent();
@@ -108,6 +108,7 @@ final class TranscoderTest extends MediathequeTestCase
         $this->assertNotNull($file);
         $this->assertSame($prefix.'/h264/video.mp4', $file->path());
         $this->assertSame([1920, 1080, 100.0, 4000000], [$file->width(), $file->height(), $file->duration(), $file->bitrate()]);
+        $this->assertSame(['copied', 'encoded'], [$file->metadata('video'), $file->metadata('audio')], 'Whether video.transcode copied or encoded each stream.');
 
         $thumbnails = array_map(fn (int $index) => ['name' => (string) $index, 'path' => $prefix.'/thumbnails/'.$index.'.jpg', 'mime' => 'image/jpeg', 'size' => 1], range(0, 3));
         foreach ($thumbnails as $thumbnail) {
