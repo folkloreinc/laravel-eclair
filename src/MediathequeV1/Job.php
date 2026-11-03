@@ -9,6 +9,7 @@ use Folklore\Eclair\Eclair;
 use Folklore\Mediatheque\Contracts\Models\File as FileContract;
 use Folklore\Mediatheque\Metadata\Value;
 use Folklore\Mediatheque\Support\PipelineJob;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
 use InvalidArgumentException;
 
@@ -112,6 +113,7 @@ abstract class Job extends PipelineJob
             'metadata' => $values,
         ]);
         $file->save();
+        $this->applyVisibility((string) $file->getAttribute('path'));
 
         return $file;
     }
@@ -185,6 +187,21 @@ abstract class Job extends PipelineJob
         $prefix = trim($this->sourcePrefix(), '/');
 
         return $prefix !== '' && str_starts_with($path, $prefix.'/') ? substr($path, strlen($prefix) + 1) : $path;
+    }
+
+    /**
+     * Eclair writes its files without an ACL, and moving them keeps their visibility: this gives
+     * a file the visibility of its source, or else of its disk, as the mediatheque's own jobs put
+     * theirs.
+     */
+    private function applyVisibility(string $path): void
+    {
+        [$disk] = $this->location();
+        $visibility = config('mediatheque.sources.'.$this->file->source.'.visibility')
+            ?? config('filesystems.disks.'.$disk.'.visibility');
+        if (is_string($visibility)) {
+            Storage::disk($disk)->setVisibility($this->diskPath($path), $visibility);
+        }
     }
 
     private function sourcePrefix(): string
