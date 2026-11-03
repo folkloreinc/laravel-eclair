@@ -7,6 +7,7 @@ use Folklore\Eclair\Facades\Eclair;
 use Folklore\Eclair\Testing\EclairFake;
 use Folklore\Eclair\Tests\TestCase as BaseTestCase;
 use Folklore\Mediatheque\Contracts\Models\File as FileContract;
+use Folklore\Mediatheque\Metadata\Value;
 use Folklore\Mediatheque\Models\File;
 use Folklore\Mediatheque\ServiceProvider as MediathequeServiceProvider;
 use Folklore\Mediatheque\Support\PipelineJob;
@@ -52,9 +53,11 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * An original on the `cloud` source.
+     * An original on the `cloud` source, with its metadata by name (`width`, `height`).
+     *
+     * @param  array<string, int>  $metadata
      */
-    protected function original(string $type = 'video', string $mime = 'video/mp4', string $extension = 'mp4'): File
+    protected function original(string $type = 'video', string $mime = 'video/mp4', string $extension = 'mp4', array $metadata = []): File
     {
         Storage::disk('s3')->put('uploads/original.'.$extension, 'original');
         $file = app(FileContract::class);
@@ -65,9 +68,12 @@ abstract class TestCase extends BaseTestCase
             'mime' => $mime,
             'extension' => $extension,
             'size' => 8,
-            'metadata' => [],
+            'metadata' => array_map(fn (string $name, int $value) => new Value($name, $value, 'integer'), array_keys($metadata), $metadata),
         ]);
         $file->save();
+        // As the pipeline gets it, with its metadata
+        $file = $file->fresh();
+        $this->assertInstanceOf(File::class, $file);
 
         return $file;
     }

@@ -8,7 +8,8 @@ use Folklore\Mediatheque\Contracts\Models\File as FileContract;
 
 /**
  * The mediatheque's ffmpeg video jobs (`H264`, `WebM`, `HEVC`) on Eclair, with their options:
- * `max_width`, `max_height`, `quality` (a CRF), `kilo_bitrate` (a cap, 0 for none) and
+ * `max_width` and `max_height` (when the video is larger than both, see `Job::maxSize()`),
+ * `quality` (a CRF), `kilo_bitrate` (a cap, 0 for none) and
  * `audio_kilo_bitrate`.
  */
 abstract class Transcode extends Job
@@ -20,8 +21,7 @@ abstract class Transcode extends Job
     {
         $options = array_filter([
             'codec' => $this->codec(),
-            'maxWidth' => self::positiveInt($this->option('max_width')),
-            'maxHeight' => self::positiveInt($this->option('max_height')),
+            ...$this->maxSize(),
             'quality' => self::positiveInt($this->option('quality')),
             'maxBitrate' => self::positiveInt($this->option('kilo_bitrate')),
             'audioBitrate' => self::positiveInt($this->option('audio_kilo_bitrate')),

@@ -22,7 +22,7 @@ final class JobsTest extends TestCase
 
     public function test_media_convert_gives_its_files_by_format_on_the_same_disk(): void
     {
-        $original = $this->original();
+        $original = $this->original(metadata: ['width' => 3840, 'height' => 2160]);
         $this->completeWith([
             'h264' => ['files' => ['video.mp4'], 'metadata' => ['width' => 1080, 'height' => 608, 'duration' => 12.5]],
             'webm' => ['files' => ['video.webm'], 'metadata' => ['width' => 1080, 'height' => 608, 'duration' => 12.5]],
@@ -51,6 +51,28 @@ final class JobsTest extends TestCase
         $this->assertStringNotContainsString('eclair/', (string) $h264->getAttribute('path'));
     }
 
+    public function test_a_video_is_resized_only_when_larger_than_both_maximums(): void
+    {
+        $maxSize = function (array $metadata, array $options = []): array {
+            $this->completeWith(['h264' => ['files' => ['video.mp4']]]);
+            (new MediaConvert($this->original(metadata: $metadata), ['format' => ['h264'], 'max_width' => 1080, 'max_height' => 1080, ...$options]))->handle();
+            $options = [];
+            $this->eclair->assertJobCreated(function (array $request) use (&$options): bool {
+                $options = array_intersect_key($request['tasks']['h264']['options'], ['maxWidth' => true, 'maxHeight' => true]);
+
+                return true;
+            });
+
+            return $options;
+        };
+
+        // As the mediatheque: a portrait video that fits in the width keeps its size
+        $this->assertSame([], $maxSize(['width' => 1080, 'height' => 1920]));
+        $this->assertSame([], $maxSize([]));
+        $this->assertSame(['maxWidth' => 1080, 'maxHeight' => 1080], $maxSize(['width' => 1440, 'height' => 2560]));
+        $this->assertSame(['maxWidth' => 1080, 'maxHeight' => 1080], $maxSize(['width' => 640, 'height' => 360], ['upscale' => true]));
+    }
+
     public function test_thumbnails_are_listed_by_index_or_one_without_count(): void
     {
         $original = $this->original();
@@ -69,7 +91,7 @@ final class JobsTest extends TestCase
     public function test_the_other_jobs_translate_their_options(): void
     {
         $this->completeWith(['video' => ['files' => ['video.mp4']]]);
-        (new H264($this->original(), ['max_width' => 480, 'max_height' => 480, 'quality' => 26, 'kilo_bitrate' => 0]))->handle();
+        (new H264($this->original(metadata: ['width' => 1920, 'height' => 1080]), ['max_width' => 480, 'max_height' => 480, 'quality' => 26, 'kilo_bitrate' => 0]))->handle();
         $this->eclair->assertJobCreated(fn (array $request) => ($request['tasks']['video'] ?? null) === ['op' => 'video.transcode', 'options' => ['codec' => 'h264', 'maxWidth' => 480, 'maxHeight' => 480, 'quality' => 26]]);
 
         $this->completeWith(['mp3' => ['files' => ['audio.mp3'], 'metadata' => ['duration' => 30]]]);
