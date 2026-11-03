@@ -94,7 +94,8 @@ abstract class TestCase extends BaseTestCase
                 $files = [];
                 foreach ($output['files'] ?? [] as $name) {
                     $path = $prefix.$task.'/'.$name;
-                    Storage::disk('s3')->put($path, 'output');
+                    // Without an ACL, as Eclair writes them
+                    Storage::disk('s3')->put($path, 'output', 'private');
                     $files[] = ['name' => pathinfo($name, PATHINFO_FILENAME), 'path' => $path, 'mime' => self::mime($name), 'size' => 6];
                 }
                 $results[$task] = array_filter(['files' => $files, 'metadata' => $output['metadata'] ?? null]);
