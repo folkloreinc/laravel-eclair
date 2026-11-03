@@ -73,6 +73,25 @@ final class JobsTest extends TestCase
         $this->assertSame(['maxWidth' => 1080, 'maxHeight' => 1080], $maxSize(['width' => 640, 'height' => 360], ['upscale' => true]));
     }
 
+    public function test_files_get_the_visibility_of_their_source_or_disk(): void
+    {
+        $visibility = function (): string {
+            $this->completeWith(['video' => ['files' => ['video.mp4']]]);
+            $file = (new H264($this->original()))->handle();
+            $this->assertInstanceOf(File::class, $file);
+
+            return Storage::disk('s3')->getVisibility(ltrim((string) $file->getAttribute('path'), '/'));
+        };
+
+        $this->assertSame('private', $visibility());
+
+        config(['filesystems.disks.s3.visibility' => 'public']);
+        $this->assertSame('public', $visibility());
+
+        config(['mediatheque.sources.cloud.visibility' => 'private']);
+        $this->assertSame('private', $visibility());
+    }
+
     public function test_thumbnails_are_listed_by_index_or_one_without_count(): void
     {
         $original = $this->original();
