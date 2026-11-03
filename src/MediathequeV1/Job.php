@@ -146,6 +146,36 @@ abstract class Job extends PipelineJob
         ];
     }
 
+    /**
+     * `max_width` and `max_height`, as Eclair's `maxWidth` and `maxHeight`, applied as the
+     * mediatheque applies them: only when the original is larger than both (or than the one
+     * given), from the `width` and `height` of its metadata. A video that fits in one of them
+     * keeps its size, and so does one without them. With `upscale`, they are always sent, but
+     * Eclair never enlarges a video.
+     *
+     * @return array{maxWidth?: int, maxHeight?: int}
+     */
+    protected function maxSize(): array
+    {
+        $max = array_filter([
+            'maxWidth' => $this->option('max_width'),
+            'maxHeight' => $this->option('max_height'),
+        ], fn ($value) => is_numeric($value) && (int) $value > 0);
+        $max = array_map('intval', $max);
+        if ($max === [] || $this->option('upscale', false) === true) {
+            return $max;
+        }
+        $width = $this->file->getMetadata('width')?->getValue();
+        $height = $this->file->getMetadata('height')?->getValue();
+        if (! is_numeric($width) || ! is_numeric($height)) {
+            return [];
+        }
+        $larger = (! isset($max['maxWidth']) || (int) $width > $max['maxWidth'])
+            && (! isset($max['maxHeight']) || (int) $height > $max['maxHeight']);
+
+        return $larger ? $max : [];
+    }
+
     protected function option(string $name, mixed $default = null): mixed
     {
         return data_get($this->options, $name, $default);
