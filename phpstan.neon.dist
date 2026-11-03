@@ -8,4 +8,8 @@ parameters:
     paths:
         - src
         - tests
+    # Analysed with laravel-mediatheque 1.1 installed: phpstan-mediatheque-v1.neon.dist
+    excludePaths:
+        - src/MediathequeV1
+        - tests/MediathequeV1
     tmpDir: build/phpstan

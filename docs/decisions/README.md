@@ -8,3 +8,4 @@ Each record says what was decided, why, and what follows. A decision that change
 | [0002](0002-protocol-arrays-and-schema-tests.md) | Protocol arrays, checked against its schema |
 | [0003](0003-fake-behind-the-http-client.md)      | The fake answers behind the HTTP client   |
 | [0004](0004-mediatheque-driver.md)               | The mediatheque driver translates renditions |
+| [0005](0005-mediatheque-1-1-jobs.md)             | Eclair jobs for laravel-mediatheque 1.1 wait in the queue |

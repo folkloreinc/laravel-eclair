@@ -63,7 +63,9 @@
         "test": "phpunit",
         "format": "pint",
         "lint": "pint --test",
-        "analyse": "phpstan analyse --memory-limit=1G"
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "test:v1": "phpunit --testsuite MediathequeV1",
+        "analyse:v1": "phpstan analyse --memory-limit=1G -c phpstan-mediatheque-v1.neon.dist"
     },
     "extra": {
         "laravel": {
