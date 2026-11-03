@@ -1,0 +1,12 @@
+# The jobs of laravel-mediatheque 1.1, analysed with laravel-mediatheque ^1.1 installed instead of 2
+# (CI's "laravel-mediatheque 1.1" job, `composer analyse:v1`).
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+    phpVersion: 80300
+    paths:
+        - src/MediathequeV1
+        - tests/MediathequeV1
+    tmpDir: build/phpstan-v1

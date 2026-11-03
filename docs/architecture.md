@@ -28,6 +28,7 @@ Application ──── Eclair::jobs()->create() ─────────▶
 | `Testing\EclairFake`                     | An in-memory Eclair behind Laravel's HTTP client ([decision 0003](decisions/0003-fake-behind-the-http-client.md)) |
 | `Console\StatusCommand`                  | `eclair:status`                                                                                               |
 | `Mediatheque\*`                          | The `eclair` transcoder and prober of `laravel-mediatheque` 2 ([below](#the-mediatheque-driver))               |
+| `MediathequeV1\*`                        | Eclair jobs for the pipelines of `laravel-mediatheque` 1.1 ([decision 0005](decisions/0005-mediatheque-1-1-jobs.md)) |
 
 ## Requests
 

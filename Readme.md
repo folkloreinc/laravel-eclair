@@ -8,7 +8,7 @@ The Laravel client of [Eclair](https://github.com/urbania-media/eclair), a self-
 - Downloads of outputs from Eclair's temporary storage to a disk.
 - `Eclair::fake()`, an in-memory Eclair for your tests.
 - `php artisan eclair:status`, to check the configuration.
-- The `eclair` transcoder and prober of [`laravel-mediatheque`](https://github.com/folkloreinc/laravel-mediatheque) 2.
+- The `eclair` transcoder and prober of [`laravel-mediatheque`](https://github.com/folkloreinc/laravel-mediatheque) 2, and Eclair jobs for its 1.1 pipelines.
 
 **Status:** in development, before 1.0. Requires PHP 8.3+ and Laravel 12+.
 
@@ -191,6 +191,46 @@ How it maps ([decision 0004](docs/decisions/0004-mediatheque-driver.md)):
 - The operations that write images (`video.poster`, `video.thumbnails`, `audio.waveform`, `document.thumbnails`, `image.convert`, `image.thumbnail`) ask Eclair for the ThumbHash placeholder of each file, which is kept in the file's metadata (`thumbhash`), as the `ffmpeg` driver keeps it from its probe. It needs an Eclair whose operations know the `thumbhash` option (urbania-media/eclair#74); a rendition can turn it off with `thumbhash: false`.
 - Files of a public run are made public once written: Eclair writes them private.
 - `cancel()` cancels the job, and `refresh()` reads it again, for a webhook that never came.
+
+## laravel-mediatheque 1.1
+
+Applications on `laravel-mediatheque` 1.1 replace the mediatheque's jobs with Eclair's, one pipeline job at a time, in `config/mediatheque.php`:
+
+```php
+'video' => [
+    'jobs' => [
+        // 'thumbnails' => ['job' => \Folklore\Mediatheque\Jobs\Video\Thumbnails::class, 'count' => 5],
+        'thumbnails' => ['job' => \Folklore\Eclair\MediathequeV1\Video\Thumbnails::class, 'count' => 5, 'in_middle' => true],
+        // 'h264' => ['job' => \Folklore\Mediatheque\Jobs\Video\MediaConvert::class, 'format' => ['h264'], 'bitrate' => 2500],
+        'h264' => ['job' => \Folklore\Eclair\MediathequeV1\Video\MediaConvert::class, 'format' => ['h264'], 'max_width' => 1080, 'bitrate' => 2500],
+    ],
+],
+```
+
+| Mediatheque 1.1 job | Eclair's | Eclair operation |
+| --- | --- | --- |
+| `Video\H264`, `WebM`, `HEVC` | `Folklore\Eclair\MediathequeV1\Video\H264`, `WebM`, `HEVC` | `video.transcode` (`max_width`, `max_height`, `quality`, `kilo_bitrate`, `audio_kilo_bitrate`) |
+| `Video\MediaConvert` | `…\Video\MediaConvert` | `video.transcode`, one task per `format` (`max_width`, `max_height`, `bitrate`) |
+| `Video\Thumbnails` | `…\Video\Thumbnails` | `video.thumbnails` (`count`, `in_middle`) |
+| `Audio\Mp3` | `…\Audio\Mp3` | `audio.transcode` (`bitrate`, `channels`) |
+| `Audio\Thumbnails` | `…\Audio\Thumbnails` | `audio.waveform` (`width`, `height`, `zoom`, colors, `axis_label`) |
+| `Document\Thumbnails` | `…\Document\Thumbnails` | `document.thumbnails` (`count`, `resolution`, `quality`, `format`) |
+| `Font\WebFonts` | `…\Font\WebFonts` | `font.convert` (WOFF2 and WOFF; no EOT or SVG) |
+
+Each job works like the mediatheque's `MediaConvert` ([decision 0005](docs/decisions/0005-mediatheque-1-1-jobs.md)):
+
+1. It sends one Eclair job from the pipeline's queued job.
+2. It checks it every `eclair.mediatheque_v1.poll_interval` seconds, without using the worker's CPU.
+3. It moves the files Eclair wrote under `eclair/` to the paths the mediatheque gives its files.
+
+The files keep their handles (`h264`, `webm`, `thumbnails.0`…), so nothing that reads them changes. A failed Eclair job fails the pipeline job. A job longer than `eclair.mediatheque_v1.timeout` is canceled.
+
+What it needs:
+
+- the original on a `filesystem` source whose disk is mapped to a storage of the Eclair project (`eclair.storages`);
+- a worker timeout longer than the longest job, as for MediaConvert.
+
+A job with `'queue' => false` waits for Eclair during the request that runs its pipeline: queue the video jobs.
 
 ## Testing
 

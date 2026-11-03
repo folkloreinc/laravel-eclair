@@ -109,4 +109,24 @@ return [
         'probe_timeout' => 10,
         'operations' => [],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | laravel-mediatheque 1.1
+    |--------------------------------------------------------------------------
+    |
+    | The jobs of `Folklore\Eclair\MediathequeV1` replace the mediatheque's own
+    | in a pipeline's `job`. Each one sends an Eclair job and waits for it in
+    | the pipeline's queued job, checking it every `poll_interval` seconds, and
+    | cancels it after `timeout` seconds. Eclair writes its files under
+    | `output_path`, on the disk of the original's source, and the job moves
+    | them to the paths the mediatheque gives its files.
+    |
+    */
+
+    'mediatheque_v1' => [
+        'output_path' => 'eclair',
+        'poll_interval' => 3,
+        'timeout' => 3600,
+    ],
 ];

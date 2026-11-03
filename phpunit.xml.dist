@@ -11,6 +11,9 @@
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
         </testsuite>
+        <testsuite name="MediathequeV1">
+            <directory>tests/MediathequeV1</directory>
+        </testsuite>
         <testsuite name="EndToEnd">
             <directory>tests/EndToEnd</directory>
         </testsuite>
