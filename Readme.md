@@ -210,7 +210,7 @@ Applications on `laravel-mediatheque` 1.1 replace the mediatheque's jobs with Ec
 | Mediatheque 1.1 job | Eclair's | Eclair operation |
 | --- | --- | --- |
 | `Video\H264`, `WebM`, `HEVC` | `Folklore\Eclair\MediathequeV1\Video\H264`, `WebM`, `HEVC` | `video.transcode` (`max_width`, `max_height`, `quality`, `kilo_bitrate`, `audio_kilo_bitrate`) |
-| `Video\MediaConvert` | `…\Video\MediaConvert` | `video.transcode`, one task per `format` (`max_width`, `max_height`, `bitrate`) |
+| `Video\MediaConvert` | `…\Video\MediaConvert` | `video.transcode`, one task per `format` (`max_width`, `max_height`, `bitrate`, and `quality`, a CRF for Eclair only) |
 | `Video\Thumbnails` | `…\Video\Thumbnails` | `video.thumbnails` (`count`, `in_middle`) |
 | `Audio\Mp3` | `…\Audio\Mp3` | `audio.transcode` (`bitrate`, `channels`) |
 | `Audio\Thumbnails` | `…\Audio\Thumbnails` | `audio.waveform` (`width`, `height`, `zoom`, colors, `axis_label`) |
