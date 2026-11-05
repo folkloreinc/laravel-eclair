@@ -9,8 +9,9 @@ use Folklore\Mediatheque\Contracts\Models\File as FileContract;
 /**
  * The mediatheque's `Video\MediaConvert` job on Eclair, with its options: `format` (`h264`,
  * `webm`, `h265`), `max_width` and `max_height` (when the video is larger than both, see
- * `Job::maxSize()`) and `bitrate` (kbit/s, a cap). It returns its files
- * by format, as MediaConvert's, so their handles stay `h264`, `webm` and `h265`.
+ * `Job::maxSize()`), `bitrate` (kbit/s, a cap) and `quality`, Eclair's CRF (lower is better),
+ * which the mediatheque's own job doesn't use. It returns its files by format, as
+ * MediaConvert's, so their handles stay `h264`, `webm` and `h265`.
  */
 class MediaConvert extends Job
 {
@@ -23,6 +24,7 @@ class MediaConvert extends Job
             $tasks[$format] = ['op' => 'video.transcode', 'options' => array_filter([
                 'codec' => self::CODECS[$format],
                 ...$this->maxSize(),
+                'quality' => Transcode::positiveInt($this->option('quality')),
                 'maxBitrate' => Transcode::positiveInt($this->option('bitrate')),
             ], fn ($value) => $value !== null)];
         }

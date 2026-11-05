@@ -28,13 +28,13 @@ final class JobsTest extends TestCase
             'webm' => ['files' => ['video.webm'], 'metadata' => ['width' => 1080, 'height' => 608, 'duration' => 12.5]],
         ], polls: 2);
 
-        $files = (new MediaConvert($original, ['format' => ['h264', 'webm'], 'max_width' => 1080, 'max_height' => 1080, 'bitrate' => 2500]))->handle();
+        $files = (new MediaConvert($original, ['format' => ['h264', 'webm'], 'max_width' => 1080, 'max_height' => 1080, 'bitrate' => 2500, 'quality' => 25]))->handle();
 
         $this->eclair->assertJobCreated(function (array $request) use ($original): bool {
             $this->assertMatchesProtocol('JobRequest', $request);
             $this->assertSame(['storage' => 'media', 'path' => ltrim((string) $original->getAttribute('path'), '/')], $request['input']);
             $this->assertStringStartsWith('eclair/'.$original->getKey().'-mediaconvert-', $request['output']['prefix']);
-            $this->assertSame(['op' => 'video.transcode', 'options' => ['codec' => 'h264', 'maxWidth' => 1080, 'maxHeight' => 1080, 'maxBitrate' => 2500]], $request['tasks']['h264']);
+            $this->assertSame(['op' => 'video.transcode', 'options' => ['codec' => 'h264', 'maxWidth' => 1080, 'maxHeight' => 1080, 'quality' => 25, 'maxBitrate' => 2500]], $request['tasks']['h264']);
             $this->assertSame('vp9', $request['tasks']['webm']['options']['codec']);
 
             return true;
