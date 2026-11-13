@@ -67,6 +67,18 @@ class Eclair
     }
 
     /**
+     * The input of a video or audio on a platform, by the URL of its page, for `probe()` and jobs:
+     * Eclair reads it with `embed.probe` through the provider's API, and `embed.download` downloads
+     * it when the project allows that provider. Eclair never requests the URL itself.
+     *
+     * @return array{embed: string}
+     */
+    public function embed(string $url): array
+    {
+        return ['embed' => $url];
+    }
+
+    /**
      * The metadata of a file sent in the request, within the project's direct upload limit.
      *
      * @param  mixed  $file  Its contents, a stream, or a file object

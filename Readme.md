@@ -102,6 +102,26 @@ if ($result->pending()) {
 
 `checksum: true` adds a SHA-256 of the whole file, and `thumbhash: true` a ThumbHash placeholder of an image.
 
+### Embeds
+
+A video or audio on a platform (YouTube, Vimeo, Dailymotion, SoundCloud, Spotify, TikTok, Instagram), by the URL of its page, for a project that allows its provider (Eclair's `embedProviders`). Eclair reads it through the provider's API or oEmbed, with the project's credentials, and never requests the URL itself:
+
+```php
+$result = Eclair::probe(Eclair::embed('https://vimeo.com/76979871'));
+
+$result->metadata;        // ['kind' => 'video', 'mime' => 'text/html', 'duration' => 62, …]
+$embed = $result->embed(); // EmbedMetadata, or null for a file
+$embed->provider;          // 'vimeo'
+$embed->embedUrl;          // the player, for an iframe
+$embed->authorId;          // from the provider's answer: compare it with your user's account
+```
+
+`Eclair::embed()` is an input for jobs too, with `embed.download` for a project that may download from that provider (`embedDownload`).
+
+### Panneau's `embed` field
+
+With `folklore/laravel-panneau` installed, `ECLAIR_PANNEAU_EMBEDS=true` resolves the URLs of `embed` fields with Eclair instead of the providers' oEmbed (`Folklore\Eclair\Panneau\EclairEmbedResolver`): the project's providers and credentials, and the duration that oEmbed doesn't give. A URL Eclair refuses, or an Eclair that doesn't answer, leaves the URL alone, as Panneau's own resolver does; answers are cached for `panneau.embeds.cache_ttl` seconds.
+
 ## Uploads
 
 For files Eclair can't read, send them to its temporary storage:
@@ -182,7 +202,7 @@ What it needs:
 - The operations of the server: Eclair's built-in ones. Add the server's others (plugins) to `eclair.mediatheque.operations`.
 - To show how far each rendition is while it runs, the project's `progressWebhooks` setting on (`eclair projects:update <project> --set progressWebhooks=true`) and `ECLAIR_MEDIATHEQUE_PROGRESS=true`. The `task.progress` webhooks record the progress, at most every `progressWebhookInterval` milliseconds (5000 by default), and the transcoder tells the mediatheque that progress is pushed. Without them, a rendition only moves when it completes.
 
-`ECLAIR_MEDIATHEQUE_PROBER=true` probes the media with Eclair too, so the application's servers need neither ffprobe nor ImageMagick. Images get their ThumbHash placeholder (`thumbhash`), as with the mediatheque's local prober, from an Eclair server that has it (urbania-media/eclair#65). A probe longer than `eclair.mediatheque.probe_timeout` seconds completes with its job's webhook.
+`ECLAIR_MEDIATHEQUE_PROBER=true` probes the media with Eclair too, so the application's servers need neither ffprobe nor ImageMagick. Images get their ThumbHash placeholder (`thumbhash`), as with the mediatheque's local prober, from an Eclair server that has it (urbania-media/eclair#65). A probe longer than `eclair.mediatheque.probe_timeout` seconds completes with its job's webhook. The remote original of an embed (`Source::embed()` of the mediatheque) is probed as an `embed` input, and the provider's answer goes to the media in the mediatheque's keys for embeds (`provider`, `embed_url`, `title`, `author_id`…). A platform that refuses Eclair for now (`provider_refused`) leaves the probe to the queue's next try.
 
 How it maps ([decision 0004](docs/decisions/0004-mediatheque-driver.md)):
 

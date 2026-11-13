@@ -154,6 +154,40 @@ final class ClientTest extends TestCase
         $this->assertSame(2, $preset['version']);
     }
 
+    public function test_it_probes_an_embed_and_reads_what_its_provider_says(): void
+    {
+        Http::fake(['eclair.example.com/v1/probe' => Http::response(['metadata' => [
+            'kind' => 'video',
+            'mime' => 'text/html',
+            'duration' => 634,
+            'embed' => [
+                'provider' => 'youtube',
+                'id' => 'aqz-KE-bpKQ',
+                'url' => 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+                'embedUrl' => 'https://www.youtube.com/embed/aqz-KE-bpKQ',
+                'title' => 'Big Buck Bunny',
+                'author' => ['id' => 'UCSMOQeBJ2RAnuFungnQOxLg', 'name' => 'Blender'],
+                'publishedAt' => '2014-11-10T14:05:55Z',
+                'embeddable' => true,
+                'privacy' => 'public',
+            ],
+        ]])]);
+
+        $result = Eclair::probe(Eclair::embed('https://youtu.be/aqz-KE-bpKQ'));
+
+        $embed = $result->embed();
+        $this->assertNotNull($embed);
+        $this->assertSame(['youtube', 'aqz-KE-bpKQ', 'https://www.youtube.com/embed/aqz-KE-bpKQ'], [$embed->provider, $embed->id, $embed->embedUrl]);
+        $this->assertSame(['UCSMOQeBJ2RAnuFungnQOxLg', 'Blender', null], [$embed->authorId, $embed->authorName, $embed->authorUrl]);
+        $this->assertSame('2014-11-10T14:05:55+00:00', $embed->publishedAt?->toIso8601String());
+        $this->assertSame([true, 'public', null], [$embed->embeddable, $embed->privacy, $embed->live]);
+        Http::assertSent(function (Request $request): bool {
+            $this->assertMatchesProtocol('ProbeRequest', $request->data());
+
+            return $request['input'] === ['embed' => 'https://youtu.be/aqz-KE-bpKQ'];
+        });
+    }
+
     public function test_it_probes_an_input_or_a_file(): void
     {
         Http::fake([
@@ -172,6 +206,7 @@ final class ClientTest extends TestCase
         $this->assertTrue($pending->pending());
         $this->assertSame(self::JOB['id'], $pending->job?->id);
         $this->assertSame('text/plain', $file->metadata['mime'] ?? null);
+        $this->assertNull($completed->embed());
         Http::assertSent(function (Request $request): bool {
             if ($request->url() !== 'https://eclair.example.com/v1/probe' || ($request->data()['timeout'] ?? null) !== 5) {
                 return false;

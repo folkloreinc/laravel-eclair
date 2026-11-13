@@ -15,7 +15,8 @@ use InvalidArgumentException;
 
 /**
  * Probes media with Eclair (`POST /v1/probe`), when `eclair.mediatheque.prober` is on, with an
- * image's ThumbHash placeholder (`thumbhash`), as the mediatheque's local prober. A probe longer than `eclair.mediatheque.probe_timeout` is pending: the mediatheque records the job's id,
+ * image's ThumbHash placeholder (`thumbhash`), as the mediatheque's local prober. The remote
+ * original of an embed, a platform's page, is probed as an `embed` input, through the provider. A probe longer than `eclair.mediatheque.probe_timeout` is pending: the mediatheque records the job's id,
  * and the job's webhook completes the probe.
  */
 class EclairProber implements Prober
@@ -30,7 +31,11 @@ class EclairProber implements Prober
         $eclair = $this->container->make(Eclair::class);
         $source = $file->source();
         $path = $file->path();
-        if ($source !== null && $path !== null) {
+        // An embed's original is its platform's page: Eclair reads it through the provider's API
+        $page = $file->isRemote() ? $file->metadata('provider_url') : null;
+        if (is_string($page) && $page !== '') {
+            $input = $eclair->embed($page);
+        } elseif ($source !== null && $path !== null) {
             $input = $eclair->input($source, $path);
         } elseif ($file->url() !== null) {
             $input = ['url' => $file->url()];
@@ -42,16 +47,22 @@ class EclairProber implements Prober
             $result = $eclair->probe(
                 $input,
                 timeout: self::timeout($this->config),
-                // The mediatheque's image placeholder, as its local prober gives one
-                thumbhash: true,
+                // The mediatheque's image placeholder, as its local prober gives one; an embed has no file
+                thumbhash: ! isset($input['embed']),
             );
         } catch (RequestFailed $exception) {
-            // The file can't be read, or its type isn't supported: retrying changes nothing
+            // The file can't be read, or its type isn't supported: retrying changes nothing. The
+            // problem's `code` is the probe's error code, when Eclair gives it
             if ($exception->status === 422) {
                 $detail = $exception->problem['detail'] ?? $exception->problem['title'] ?? null;
+                $code = $exception->problem['code'] ?? null;
+                // A platform that refuses Eclair for now (a rate limit, a quota): the queue tries again
+                if ($code === 'provider_refused') {
+                    throw $exception;
+                }
 
                 return ProbeOutcome::failed(new TranscoderError(
-                    TranscoderErrorCode::UnsupportedInput,
+                    is_string($code) ? TranscoderErrorCode::fromDriver($code) : TranscoderErrorCode::UnsupportedInput,
                     is_string($detail) ? $detail : 'Eclair can\'t read the file.',
                 ));
             }

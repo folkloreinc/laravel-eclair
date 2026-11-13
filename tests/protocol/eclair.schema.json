@@ -119,7 +119,7 @@
             }
         },
         "Input": {
-            "description": "The file to process: a URL, a path in one of the project's storages, or an upload.",
+            "description": "The file to process: a URL, a path in one of the project's storages, an upload, or an embed on a platform.",
             "oneOf": [
                 {
                     "$ref": "#/$defs/UrlInput"
@@ -129,6 +129,9 @@
                 },
                 {
                     "$ref": "#/$defs/UploadInput"
+                },
+                {
+                    "$ref": "#/$defs/EmbedInput"
                 }
             ]
         },
@@ -342,7 +345,7 @@
             ]
         },
         "TaskErrorCode": {
-            "description": "Stable error code: `input_unreadable`, `unsupported_input`, `timeout`, `limit_exceeded`, `operation_failed`, `storage_failed`, `provider_failed`, and `dependency_failed` when a task it depends on failed. New codes can be added: treat unknown ones as `operation_failed`.",
+            "description": "Stable error code: `input_unreadable`, `unsupported_input`, `timeout`, `limit_exceeded`, `operation_failed`, `storage_failed`, `provider_failed`, `dependency_failed` when a task it depends on failed, `provider_unavailable` when an embed is private, deleted or blocked where the server is, and `provider_refused` when a platform refuses the server (rate limit, bot check). New codes can be added: treat unknown ones as `operation_failed`.",
             "type": "string",
             "pattern": "^[a-z][a-z0-9_]*$",
             "examples": [
@@ -353,7 +356,9 @@
                 "operation_failed",
                 "storage_failed",
                 "provider_failed",
-                "dependency_failed"
+                "dependency_failed",
+                "provider_unavailable",
+                "provider_refused"
             ]
         },
         "TaskError": {
@@ -731,17 +736,24 @@
                             "items": {
                                 "type": "string"
                             }
+                        },
+                        "embeds": {
+                            "description": "Reads embed inputs (`embed.probe`, `embed.download`). Other operations read files only.",
+                            "type": "boolean",
+                            "default": false
                         }
                     }
                 },
                 "capability": {
-                    "description": "Queue it runs on.",
+                    "description": "Queue it runs on: `cpu`, `video`, `gpu`, `ai`, `probe`, or `network` for tasks that wait on the network, such as `embed.download`.",
                     "type": "string",
                     "examples": [
                         "cpu",
                         "video",
                         "gpu",
-                        "ai"
+                        "ai",
+                        "probe",
+                        "network"
                     ]
                 },
                 "outputs": {
@@ -862,6 +874,38 @@
                     "$ref": "#/$defs/SizeHint"
                 }
             }
+        },
+        "EmbedInput": {
+            "description": "A video or audio on a platform, by the URL of its page (decision 0022). The worker never fetches it: only operations that accept embeds (`embed.probe`, `embed.download`) read it, and other tasks read what `embed.download` wrote with `from`.",
+            "type": "object",
+            "required": [
+                "embed"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "embed": {
+                    "description": "`https` URL of the page, such as `https://www.youtube.com/watch?v=…` or `https://vimeo.com/…`. It must match a provider of the server that the project allows (`embedProviders`). Eclair never requests this URL: it reads the id from it and calls the provider's API or oEmbed endpoint.",
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https://",
+                    "maxLength": 4096
+                }
+            }
+        },
+        "EmbedProvider": {
+            "description": "An embed provider, by name. The server lists the ones it knows; plugins can add others.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "maxLength": 64,
+            "examples": [
+                "youtube",
+                "vimeo",
+                "dailymotion",
+                "soundcloud",
+                "spotify",
+                "tiktok",
+                "instagram"
+            ]
         },
         "JobFile": {
             "description": "A file of a job, with the task that wrote it.",
@@ -1004,6 +1048,89 @@
                     "type": "string",
                     "pattern": "^[A-Za-z0-9+/]+={0,2}$",
                     "maxLength": 64
+                },
+                "embed": {
+                    "$ref": "#/$defs/EmbedMetadata",
+                    "description": "For an embed input only."
+                }
+            }
+        },
+        "EmbedMetadata": {
+            "description": "What `embed.probe` reads about an embed, from the provider's API or oEmbed. A field the provider doesn't give is left out. `kind`, `duration`, `width` and `height` are in the probe's own fields, and its `mime` is `text/html`, the page's.",
+            "type": "object",
+            "required": [
+                "provider",
+                "id",
+                "url"
+            ],
+            "properties": {
+                "provider": {
+                    "$ref": "#/$defs/EmbedProvider"
+                },
+                "id": {
+                    "description": "The video's or audio's id at the provider.",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "The canonical URL of its page.",
+                    "type": "string",
+                    "format": "uri"
+                },
+                "embedUrl": {
+                    "description": "The URL of the provider's player, for an `iframe`.",
+                    "type": "string",
+                    "format": "uri"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "author": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "description": "The provider's id of the author: a YouTube channel id, a Vimeo user id… Applications compare it with an account they know, to check that a video is their user's own.",
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "url": {
+                            "type": "string",
+                            "format": "uri"
+                        }
+                    }
+                },
+                "thumbnailUrl": {
+                    "description": "The largest thumbnail the provider gives.",
+                    "type": "string",
+                    "format": "uri"
+                },
+                "publishedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "embeddable": {
+                    "description": "Whether the provider lets other sites play it.",
+                    "type": "boolean"
+                },
+                "live": {
+                    "description": "A live stream, current or upcoming.",
+                    "type": "boolean"
+                },
+                "privacy": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "unlisted",
+                        "private"
+                    ]
+                },
+                "html": {
+                    "description": "The player's HTML from the provider's oEmbed, when it has one. Never built from the request.",
+                    "type": "string"
                 }
             }
         },
@@ -1154,6 +1281,27 @@
                     "type": "integer",
                     "minimum": 1000,
                     "default": 5000
+                },
+                "embedProviders": {
+                    "description": "Embed providers whose URLs the project may use as inputs, among the server's. None when not set.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/EmbedProvider"
+                    },
+                    "uniqueItems": true
+                },
+                "embedDownload": {
+                    "description": "Embed providers the project may download from with `embed.download`, among its `embedProviders`. None when not set: the project is responsible for its rights to what it downloads.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/EmbedProvider"
+                    },
+                    "uniqueItems": true
+                },
+                "embedMaxDuration": {
+                    "description": "Longest embed that `embed.download` takes, in seconds. `ECLAIR_EMBED_MAX_DURATION` when not set.",
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -1502,6 +1650,56 @@
                 }
             }
         },
+        "CredentialsRequest": {
+            "description": "A provider's credentials for the project, encrypted and never shown again. `youtube`: `apiKey` (YouTube Data API). `vimeo`: `token`. `spotify`: `clientId`, `clientSecret`. `instagram`: `accessToken` (a Meta app token, for oEmbed). Each provider checks its own.",
+            "type": "object",
+            "required": [
+                "config"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "Credentials": {
+            "description": "A provider's credentials of a project, without their values.",
+            "type": "object",
+            "required": [
+                "provider",
+                "createdAt",
+                "updatedAt"
+            ],
+            "properties": {
+                "provider": {
+                    "$ref": "#/$defs/EmbedProvider"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "CredentialsList": {
+            "type": "object",
+            "required": [
+                "data"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Credentials"
+                    }
+                }
+            }
+        },
         "UsageLine": {
             "type": "object",
             "required": [
@@ -1563,6 +1761,454 @@
                     "items": {
                         "$ref": "#/$defs/UsageLine"
                     }
+                }
+            }
+        },
+        "AdminJob": {
+            "description": "A job, as `GET /v1/jobs/{id}` returns it, with its project.",
+            "allOf": [
+                {
+                    "$ref": "#/$defs/Job"
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "project"
+                    ],
+                    "properties": {
+                        "project": {
+                            "description": "The slug of the job's project.",
+                            "type": "string"
+                        }
+                    }
+                }
+            ]
+        },
+        "AdminJobList": {
+            "type": "object",
+            "required": [
+                "data",
+                "nextCursor"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/AdminJob"
+                    }
+                },
+                "nextCursor": {
+                    "$ref": "#/$defs/NextCursor"
+                }
+            }
+        },
+        "WebhookDelivery": {
+            "description": "One webhook of a job, with its delivery attempts.",
+            "type": "object",
+            "required": [
+                "id",
+                "event",
+                "url",
+                "status",
+                "attempts",
+                "responseStatus",
+                "nextAttemptAt",
+                "deliveredAt",
+                "createdAt"
+            ],
+            "properties": {
+                "id": {
+                    "description": "The `Eclair-Delivery` header of every attempt.",
+                    "type": "string"
+                },
+                "event": {
+                    "$ref": "#/$defs/WebhookEvent"
+                },
+                "task": {
+                    "description": "The task of a `task.*` event.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "status": {
+                    "description": "`pending` until the application answers `2xx`, `failed` once Eclair gave up.",
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "delivered",
+                        "failed"
+                    ]
+                },
+                "attempts": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "responseStatus": {
+                    "description": "The HTTP status of the last attempt, `null` when it got no response.",
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "nextAttemptAt": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "format": "date-time"
+                },
+                "deliveredAt": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "format": "date-time"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "WebhookDeliveryList": {
+            "type": "object",
+            "required": [
+                "data"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/WebhookDelivery"
+                    }
+                }
+            }
+        },
+        "ServerStatus": {
+            "description": "The state of an install, for its operators.",
+            "type": "object",
+            "required": [
+                "version",
+                "ready",
+                "checks",
+                "hosts",
+                "queues"
+            ],
+            "properties": {
+                "version": {
+                    "type": "string"
+                },
+                "ready": {
+                    "description": "What `/ready` answers.",
+                    "type": "boolean"
+                },
+                "checks": {
+                    "description": "Each check of `/ready`, by name.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "failed"
+                        ]
+                    }
+                },
+                "hosts": {
+                    "description": "The machines that run Eclair, and the queues their workers serve.",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "queues",
+                            "seenAt"
+                        ],
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "version": {
+                                "type": "string"
+                            },
+                            "queues": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": [
+                                        "name",
+                                        "concurrency"
+                                    ],
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "concurrency": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                        }
+                                    }
+                                }
+                            },
+                            "seenAt": {
+                                "type": "string",
+                                "format": "date-time"
+                            }
+                        }
+                    }
+                },
+                "queues": {
+                    "description": "Every queue of the server, served or not.",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "waiting",
+                            "active",
+                            "slots",
+                            "oldestWaitingAt"
+                        ],
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "waiting": {
+                                "description": "Tasks queued and not started.",
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "active": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "slots": {
+                                "description": "Tasks the live workers can run at once. `0`: no worker serves the queue.",
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "oldestWaitingAt": {
+                                "description": "When the task that has waited longest was queued.",
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "format": "date-time"
+                            }
+                        }
+                    }
+                },
+                "tempStorage": {
+                    "description": "The temporary storage, when its size can be read.",
+                    "type": "object",
+                    "required": [
+                        "kind"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "enum": [
+                                "local",
+                                "s3"
+                            ]
+                        },
+                        "files": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "bytes": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "freeBytes": {
+                            "description": "Free space on a local disk.",
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                }
+            }
+        },
+        "Stats": {
+            "description": "What the install did over a period, from its jobs and tasks.",
+            "type": "object",
+            "required": [
+                "since",
+                "until",
+                "interval",
+                "tasks",
+                "operations",
+                "webhooks",
+                "jobs"
+            ],
+            "properties": {
+                "since": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "until": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "interval": {
+                    "type": "string",
+                    "enum": [
+                        "hour",
+                        "day"
+                    ]
+                },
+                "tasks": {
+                    "description": "Tasks that ended in each interval, by outcome.",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "start",
+                            "completed",
+                            "failed",
+                            "canceled",
+                            "skipped"
+                        ],
+                        "properties": {
+                            "start": {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            "completed": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "failed": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "canceled": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "skipped": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        }
+                    }
+                },
+                "operations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "completed",
+                            "failed",
+                            "p50",
+                            "p95"
+                        ],
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "completed": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "failed": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "p50": {
+                                "description": "Median duration of its tasks, in seconds.",
+                                "type": [
+                                    "number",
+                                    "null"
+                                ]
+                            },
+                            "p95": {
+                                "type": [
+                                    "number",
+                                    "null"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "webhooks": {
+                    "type": "object",
+                    "required": [
+                        "delivered",
+                        "pending",
+                        "failed"
+                    ],
+                    "properties": {
+                        "delivered": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "pending": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "failed": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                },
+                "jobs": {
+                    "type": "object",
+                    "required": [
+                        "created"
+                    ],
+                    "properties": {
+                        "created": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                }
+            }
+        },
+        "StorageCheck": {
+            "description": "Whether Eclair reaches a storage with its configuration.",
+            "type": "object",
+            "required": [
+                "ok",
+                "read",
+                "write",
+                "durationMs"
+            ],
+            "properties": {
+                "ok": {
+                    "type": "boolean"
+                },
+                "read": {
+                    "type": "string",
+                    "enum": [
+                        "ok",
+                        "failed",
+                        "skipped"
+                    ]
+                },
+                "write": {
+                    "description": "`skipped` for storages Eclair only reads.",
+                    "type": "string",
+                    "enum": [
+                        "ok",
+                        "failed",
+                        "skipped"
+                    ]
+                },
+                "durationMs": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "message": {
+                    "description": "Why a step failed, without credentials.",
+                    "type": "string"
                 }
             }
         }

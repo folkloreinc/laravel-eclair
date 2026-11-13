@@ -9,6 +9,7 @@ use Folklore\Eclair\Http\Controllers\WebhookController;
 use Folklore\Eclair\Mediatheque\EclairProber;
 use Folklore\Eclair\Mediatheque\EclairTranscoder;
 use Folklore\Eclair\Mediatheque\ReconcileWebhook;
+use Folklore\Eclair\Panneau\EclairEmbedResolver;
 use Folklore\Mediatheque\Contracts\Prober;
 use Folklore\Mediatheque\Contracts\Recorder;
 use Folklore\Mediatheque\Contracts\Transcoder;
@@ -20,6 +21,7 @@ use Illuminate\Contracts\Filesystem\Factory as Filesystems;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
+use Panneau\Contracts\EmbedResolver;
 
 final class EclairServiceProvider extends ServiceProvider
 {
@@ -35,6 +37,7 @@ final class EclairServiceProvider extends ServiceProvider
         $this->app->alias(Eclair::class, 'eclair');
 
         $this->registerMediatheque();
+        $this->registerPanneau();
     }
 
     public function boot(Config $config, Router $router, Dispatcher $events): void
@@ -59,6 +62,20 @@ final class EclairServiceProvider extends ServiceProvider
      * The `eclair` transcoder of laravel-mediatheque 2, and its prober when
      * `eclair.mediatheque.prober` is on. Nothing without the mediatheque.
      */
+    /**
+     * Panneau's embed resolver through Eclair, when it is on and Panneau is installed.
+     */
+    private function registerPanneau(): void
+    {
+        if (! interface_exists(EmbedResolver::class)) {
+            return;
+        }
+
+        $this->app->extend(EmbedResolver::class, fn (EmbedResolver $resolver, Container $app): EmbedResolver => $app->make(Config::class)->get('eclair.panneau.embeds') === true
+            ? $app->make(EclairEmbedResolver::class)
+            : $resolver);
+    }
+
     private function registerMediatheque(): void
     {
         if (! self::hasMediatheque()) {

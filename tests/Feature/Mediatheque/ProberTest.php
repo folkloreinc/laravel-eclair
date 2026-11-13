@@ -4,14 +4,17 @@ namespace Folklore\Eclair\Tests\Feature\Mediatheque;
 
 use Carbon\CarbonImmutable;
 use Folklore\Eclair\Data\Job;
+use Folklore\Eclair\Exceptions\RequestFailed;
 use Folklore\Eclair\Facades\Eclair;
 use Folklore\Eclair\Mediatheque\EclairProber;
 use Folklore\Eclair\Tests\MediathequeTestCase;
+use Folklore\Mediatheque\Contracts\Models\File;
 use Folklore\Mediatheque\Contracts\Prober;
 use Folklore\Mediatheque\Enums\PipelineStatus;
 use Folklore\Mediatheque\Enums\TranscoderErrorCode;
 use Folklore\Mediatheque\Jobs\ProbeMedia;
 use Folklore\Mediatheque\Models\PipelineRun;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Http;
 
 final class ProberTest extends MediathequeTestCase
@@ -120,5 +123,91 @@ final class ProberTest extends MediathequeTestCase
         $job = $fake->completeJob($result->job->id, ['probe' => ['metadata' => ['kind' => 'video', 'mime' => 'video/quicktime']]]);
 
         $this->postEclairWebhook($job, delivery: 'whd_1')->assertServerError();
+    }
+
+    /**
+     * A pending video whose original is an embed's page, as the mediatheque's Source::embed() makes
+     * it (its decision 0029).
+     */
+    private function embedOriginal(): File
+    {
+        $media = $this->video(['status' => 'pending', 'metadata' => []]);
+        $original = $media->original();
+        $this->assertInstanceOf(Model::class, $original);
+        $original->forceFill([
+            'source' => null,
+            'path' => null,
+            'mime' => 'text/html',
+            'provider' => 'vimeo',
+            'provider_ref' => '76979871',
+            'metadata' => ['provider_url' => 'https://vimeo.com/76979871'],
+        ])->save();
+
+        return $original;
+    }
+
+    public function test_an_embed_is_probed_through_its_provider_with_flat_keys(): void
+    {
+        $fake = Eclair::fake()->probeReturns([
+            'kind' => 'video',
+            'mime' => 'text/html',
+            'duration' => 62,
+            'width' => 1920,
+            'height' => 1080,
+            'embed' => [
+                'provider' => 'vimeo',
+                'id' => '76979871',
+                'url' => 'https://vimeo.com/76979871',
+                'embedUrl' => 'https://player.vimeo.com/video/76979871',
+                'title' => 'The New Vimeo Player',
+                'author' => ['id' => '152184', 'name' => 'Vimeo', 'url' => 'https://vimeo.com/staff'],
+                'thumbnailUrl' => 'https://i.vimeocdn.com/video/452001751-d_1920x1080',
+                'publishedAt' => '2013-10-15T18:08:29Z',
+                'embeddable' => true,
+                'privacy' => 'public',
+            ],
+        ]);
+
+        $outcome = app(Prober::class)->probe($this->embedOriginal());
+
+        $this->assertTrue($outcome->isDone());
+        $this->assertSame([
+            'kind' => 'video',
+            'mime' => 'text/html',
+            'duration' => 62,
+            'width' => 1920,
+            'height' => 1080,
+            'provider' => 'vimeo',
+            'provider_id' => '76979871',
+            'provider_url' => 'https://vimeo.com/76979871',
+            'embed_url' => 'https://player.vimeo.com/video/76979871',
+            'title' => 'The New Vimeo Player',
+            'author_id' => '152184',
+            'author_name' => 'Vimeo',
+            'author_url' => 'https://vimeo.com/staff',
+            'thumbnail_url' => 'https://i.vimeocdn.com/video/452001751-d_1920x1080',
+            'published_at' => '2013-10-15T18:08:29Z',
+            'embeddable' => true,
+            'privacy' => 'public',
+        ], $outcome->metadata);
+        // The page, as an embed: no placeholder, since there is no file
+        $fake->assertProbed(fn (array $request) => $request['input'] === ['embed' => 'https://vimeo.com/76979871'] && ! isset($request['thumbhash']));
+    }
+
+    public function test_a_missing_embed_fails_with_eclairs_code_and_a_refusal_is_tried_again(): void
+    {
+        Http::fakeSequence('eclair.example.com/v1/probe')
+            ->push(['title' => 'Unprocessable Content', 'status' => 422, 'detail' => 'Vimeo has no such video or audio.', 'code' => 'provider_unavailable'], 422)
+            ->push(['title' => 'Unprocessable Content', 'status' => 422, 'detail' => 'Vimeo limits the requests.', 'code' => 'provider_refused'], 422);
+        $original = $this->embedOriginal();
+
+        $outcome = app(Prober::class)->probe($original);
+        $this->assertNotNull($outcome->error);
+        // provider_unavailable from laravel-mediatheque 2.0.0-alpha.18 on; operation_failed before
+        $this->assertSame(TranscoderErrorCode::fromDriver('provider_unavailable'), $outcome->error->code);
+        $this->assertSame('Vimeo has no such video or audio.', $outcome->error->message);
+
+        $this->expectException(RequestFailed::class);
+        app(Prober::class)->probe($original);
     }
 }
