@@ -20,7 +20,8 @@ Application ──── Eclair::jobs()->create() ─────────▶
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `Eclair` (facade `Eclair`)               | The client: `jobs()`, `presets()`, `uploads()`, `probe()`, `operations()`, the disk ↔ storage map, downloads    |
 | `Jobs`, `Presets`, `Uploads`             | The resources of the `/v1` API                                                                                |
-| `Data\*`                                 | Read-only views of the protocol's objects (`Job`, `Task`, `OutputFile`, `Upload`, `ProbeResult`), and enums    |
+| `Data\*`                                 | Read-only views of the protocol's objects (`Job`, `Task`, `OutputFile`, `Upload`, `ProbeResult`, `EmbedMetadata`), and enums    |
+| `Panneau\EclairEmbedResolver`            | Panneau's `EmbedResolver` through Eclair's `embed.probe`, when `eclair.panneau.embeds` is on and Panneau installed |
 | `Client` (internal)                      | Sends requests with Laravel's HTTP client, adds the key, turns errors into `RequestFailed` or `ConnectionFailed` |
 | `WebhookController`                      | Verifies, deduplicates and dispatches webhooks                                                                |
 | `StorageController`                      | The endpoint of the `http` storages served by the application                                                 |
@@ -66,8 +67,8 @@ Eclair reads and writes files on the project's storages, each registered in Ecla
 | `TaskOptions`        | A rendition's options in Eclair's names, with the `ffmpeg` driver's defaults where Eclair's differ                           |
 | `Reconciler`         | A job snapshot to `Recorder` calls, task by task: started, progress, completed with its files, failed, skipped, canceled     |
 | `ReconcileWebhook`   | Listens to `WebhookReceived`: runs found by the key in the job's `metadata`, pending probes by the job's id                  |
-| `EclairProber`       | `POST /v1/probe`, pending when the probe outlasts its timeout                                                                |
-| `ProbeMetadata`      | Eclair's probe in the mediatheque's keys: snake_case, upright dimensions, an image's EXIF orientation as decoded             |
+| `EclairProber`       | `POST /v1/probe`, pending when the probe outlasts its timeout. An embed's remote original is probed as an `embed` input       |
+| `ProbeMetadata`      | Eclair's probe in the mediatheque's keys: snake_case, upright dimensions, an image's EXIF orientation as decoded, an embed's `embed` object as flat keys |
 
 ```
 PipelineRunner ──▶ EclairTranscoder::submit() ──▶ POST /v1/jobs   (metadata: the run's key, Idempotency-Key)

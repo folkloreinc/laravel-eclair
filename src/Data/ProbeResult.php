@@ -20,4 +20,12 @@ final readonly class ProbeResult
     {
         return $this->metadata === null;
     }
+
+    /**
+     * What the provider says about an embed that `embed.probe` read, or null for a file.
+     */
+    public function embed(): ?EmbedMetadata
+    {
+        return EmbedMetadata::from($this->metadata);
+    }
 }

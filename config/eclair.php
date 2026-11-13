@@ -103,6 +103,22 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Panneau 5
+    |--------------------------------------------------------------------------
+    |
+    | With laravel-panneau installed, `embeds` resolves the URLs of `embed`
+    | fields with Eclair's `embed.probe` instead of the providers' oEmbed: the
+    | project's providers and credentials, and the duration oEmbed doesn't
+    | give.
+    |
+    */
+
+    'panneau' => [
+        'embeds' => (bool) env('ECLAIR_PANNEAU_EMBEDS', false),
+    ],
+
     'mediatheque' => [
         'progress' => (bool) env('ECLAIR_MEDIATHEQUE_PROGRESS', false),
         'prober' => (bool) env('ECLAIR_MEDIATHEQUE_PROBER', false),
