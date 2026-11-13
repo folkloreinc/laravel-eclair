@@ -262,6 +262,7 @@ final class TranscoderTest extends MediathequeTestCase
 
         $this->assertTrue($transcoder->supports('video.hls'));
         $this->assertTrue($transcoder->supports('embed.download'));
+        $this->assertTrue($transcoder->supports('embed.thumbnail'));
         $this->assertTrue($transcoder->supports('video.transcode@1'));
         $this->assertFalse($transcoder->supports('ai.transcribe'));
         config(['eclair.mediatheque.operations' => ['ai.transcribe']]);

@@ -63,7 +63,7 @@ Eclair reads and writes files on the project's storages, each registered in Ecla
 
 | Piece                | Role                                                                                                                         |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `EclairTranscoder`   | `submit()`: one job per run, a task per rendition. `cancel()` and `refresh()` reconcile the job Eclair returns. An embed's remote original is the job's `embed` input, which `embed.download` downloads (the mediatheque's `importEmbed()`) |
+| `EclairTranscoder`   | `submit()`: one job per run, a task per rendition. `cancel()` and `refresh()` reconcile the job Eclair returns. An embed's remote original is the job's `embed` input, which `embed.download` downloads (the mediatheque's `importEmbed()`) and `embed.thumbnail` reads the thumbnail of (its poster) |
 | `TaskOptions`        | A rendition's options in Eclair's names, with the `ffmpeg` driver's defaults where Eclair's differ                           |
 | `Reconciler`         | A job snapshot to `Recorder` calls, task by task: started, progress, completed with its files, failed, skipped, canceled     |
 | `ReconcileWebhook`   | Listens to `WebhookReceived`: runs found by the key in the job's `metadata`, pending probes by the job's id                  |

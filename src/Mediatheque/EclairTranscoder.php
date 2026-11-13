@@ -45,6 +45,7 @@ class EclairTranscoder implements Transcoder
         'document.thumbnails',
         'font.convert',
         'embed.download',
+        'embed.thumbnail',
     ];
 
     public function __construct(
