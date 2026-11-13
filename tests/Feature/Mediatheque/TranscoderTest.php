@@ -11,6 +11,7 @@ use Folklore\Eclair\Tests\ValidatesProtocol;
 use Folklore\Mediatheque\Enums\JobStatus;
 use Folklore\Mediatheque\Enums\PipelineStatus;
 use Folklore\Mediatheque\Enums\ProgressReporting;
+use Folklore\Mediatheque\Models\File;
 use Folklore\Mediatheque\Models\Media;
 use Folklore\Mediatheque\Models\PipelineRun;
 use Folklore\Mediatheque\Pipelines\PipelineRunner;
@@ -192,6 +193,50 @@ final class TranscoderTest extends MediathequeTestCase
         $this->assertSame('public', Storage::disk('s3')->getVisibility($prefix.'/h264/video.mp4'));
     }
 
+    public function test_an_embeds_page_is_the_input_of_its_import(): void
+    {
+        $fake = Eclair::fake();
+        config(['mediatheque.pipelines.embed_import' => ['transcoder' => 'eclair', 'renditions' => [
+            'download' => ['op' => 'embed.download'],
+            'h264' => ['op' => 'video.transcode', 'from' => 'download'],
+        ]]]);
+        // An embed, as the mediatheque's Source::embed() makes it (its decision 0029)
+        $media = $this->video(['status' => 'ready']);
+        $original = $media->original();
+        $this->assertInstanceOf(File::class, $original);
+        $original->forceFill([
+            'source' => null,
+            'path' => null,
+            'mime' => 'text/html',
+            'provider' => 'vimeo',
+            'provider_ref' => '76979871',
+            'metadata' => ['provider_url' => 'https://vimeo.com/76979871'],
+        ])->save();
+
+        $run = app(PipelineRunner::class)->run($media->refresh(), 'embed_import');
+        $this->assertInstanceOf(PipelineRun::class, $run);
+
+        $fake->assertJobCreated(function (array $request): bool {
+            $this->assertMatchesProtocol('JobRequest', $request);
+            $this->assertSame(['embed' => 'https://vimeo.com/76979871'], $request['input']);
+            $this->assertSame(['op' => 'embed.download'], $request['tasks']['download']);
+            $this->assertSame('download', $request['tasks']['h264']['from']);
+
+            return true;
+        });
+
+        $prefix = $run->pathPrefix();
+        Storage::disk('s3')->put($prefix.'/download/video.mp4', 'video');
+        $job = $fake->completeJob($run->externalId() ?? '', [
+            'download' => ['files' => [['name' => 'video', 'path' => $prefix.'/download/video.mp4', 'mime' => 'video/mp4', 'size' => 5]]],
+        ]);
+        $this->postEclairWebhook($job)->assertNoContent();
+
+        $this->assertSame(PipelineStatus::Completed, $run->refresh()->status());
+        $this->assertSame($prefix.'/download/video.mp4', $media->refresh()->file('download')?->path());
+        $this->assertTrue($media->original()?->isRemote(), 'The rendition mode keeps the embed: replacing the original is the mediatheque\'s, once the run completed.');
+    }
+
     public function test_cancel_and_refresh_reconcile_the_job(): void
     {
         $fake = Eclair::fake();
@@ -216,6 +261,7 @@ final class TranscoderTest extends MediathequeTestCase
         $transcoder = app(TranscoderManager::class)->driver('eclair');
 
         $this->assertTrue($transcoder->supports('video.hls'));
+        $this->assertTrue($transcoder->supports('embed.download'));
         $this->assertTrue($transcoder->supports('video.transcode@1'));
         $this->assertFalse($transcoder->supports('ai.transcribe'));
         config(['eclair.mediatheque.operations' => ['ai.transcribe']]);

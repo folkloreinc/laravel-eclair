@@ -24,6 +24,9 @@ use InvalidArgumentException;
  *   from it: the media is always probed before its pipeline runs, and Eclair only checks
  *   durations against a probe of its own.
  * - The job's idempotency key is the run's key, so submitting a run twice gives one job.
+ * - The original of an embed, a platform's page, is the job's `embed` input: its pipeline
+ *   downloads it with `embed.download`, and its other renditions read from that one
+ *   (laravel-mediatheque's decision 0030).
  */
 class EclairTranscoder implements Transcoder
 {
@@ -41,6 +44,7 @@ class EclairTranscoder implements Transcoder
         'image.palette',
         'document.thumbnails',
         'font.convert',
+        'embed.download',
     ];
 
     public function __construct(
@@ -172,6 +176,12 @@ class EclairTranscoder implements Transcoder
      */
     private function input(Eclair $eclair, File $file): array
     {
+        // An embed's original is its platform's page: Eclair downloads it through the provider
+        // (`embed.download`), and the renditions that read from it run on the file
+        $page = $file->isRemote() ? $file->metadata('provider_url') : null;
+        if (is_string($page) && $page !== '') {
+            return $eclair->embed($page);
+        }
         $source = $file->source();
         $path = $file->path();
         if ($source !== null && $path !== null) {

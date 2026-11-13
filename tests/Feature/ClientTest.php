@@ -154,6 +154,15 @@ final class ClientTest extends TestCase
         $this->assertSame(2, $preset['version']);
     }
 
+    public function test_every_error_code_of_the_protocol_is_read(): void
+    {
+        $schema = json_decode((string) file_get_contents(__DIR__.'/../protocol/eclair.schema.json'), true);
+        $codes = $schema['$defs']['TaskErrorCode']['examples'] ?? null;
+        $this->assertIsArray($codes);
+
+        $this->assertSame($codes, array_map(fn (string $code) => ErrorCode::read($code)->value, $codes));
+    }
+
     public function test_it_probes_an_embed_and_reads_what_its_provider_says(): void
     {
         Http::fake(['eclair.example.com/v1/probe' => Http::response(['metadata' => [

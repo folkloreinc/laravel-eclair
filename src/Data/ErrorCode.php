@@ -16,6 +16,10 @@ enum ErrorCode: string
     case StorageFailed = 'storage_failed';
     case ProviderFailed = 'provider_failed';
     case DependencyFailed = 'dependency_failed';
+    /** An embed's provider doesn't have it, or doesn't serve it: private, deleted, not embeddable. */
+    case ProviderUnavailable = 'provider_unavailable';
+    /** An embed's provider refused the request: credentials, quota, rate limit. Can be tried again. */
+    case ProviderRefused = 'provider_refused';
 
     public static function read(string $code): self
     {
