@@ -81,6 +81,7 @@ class EclairEmbedResolver implements EmbedResolver
             'url' => $url,
             'type' => match ($kind) {
                 'video' => 'video',
+                'audio' => 'audio',
                 'image' => 'photo',
                 default => 'rich',
             },

@@ -70,6 +70,19 @@ final class PanneauEmbedResolverTest extends TestCase
         Http::assertSent(fn (Request $request) => $request['input'] === ['embed' => 'https://vimeo.com/76979871'] && $request['timeout'] === 10);
     }
 
+    public function test_an_audio_embed_is_an_audio_value(): void
+    {
+        Http::fake(['eclair.example.com/v1/probe' => Http::response(['metadata' => [
+            'kind' => 'audio',
+            'mime' => 'text/html',
+            'embed' => ['provider' => 'soundcloud', 'id' => 'forss/flickermood', 'url' => 'https://soundcloud.com/forss/flickermood', 'html' => '<iframe></iframe>'],
+        ]])]);
+
+        $value = app(EclairEmbedResolver::class)->resolve('https://soundcloud.com/forss/flickermood');
+
+        $this->assertSame(['audio', 'SoundCloud', '<iframe></iframe>'], [$value['type'] ?? null, $value['provider'] ?? null, $value['html'] ?? null]);
+    }
+
     public function test_a_url_eclair_refuses_or_an_unreachable_eclair_resolves_to_nothing(): void
     {
         Http::fakeSequence('eclair.example.com/v1/probe')
