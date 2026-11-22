@@ -126,7 +126,9 @@ class EclairFake extends Eclair
     /**
      * Completes the job's unfinished tasks, with their outputs by task name:
      * `['h264' => ['files' => [[name, path, mime, size]], 'metadata' => […]]]`. A file with
-     * `contents` is in the temporary storage: it gets a URL, which `Eclair::download()` reads.
+     * `contents` is in the temporary storage: it gets a URL, which `Eclair::download()` reads. A
+     * `usage` (`['mediaSeconds' => 30, 'cost' => ['amount' => 0.003, 'currency' => 'USD']]`) is
+     * the task's usage at a paid provider.
      *
      * @param  array<string, array<string, mixed>>  $outputs
      */
@@ -138,7 +140,7 @@ class EclairFake extends Eclair
             if (! in_array($task['status'], ['completed', 'failed', 'canceled', 'skipped'], true)) {
                 $task = ['startedAt' => $now, ...$task, 'status' => 'completed', 'endedAt' => $now];
                 if (isset($outputs[$name])) {
-                    $task['outputs'] = $this->outputs($outputs[$name]);
+                    $task = [...$task, ...$this->taskOutputs($outputs[$name])];
                 }
                 $this->jobs[$id]['tasks'][$name] = $task;
             }
@@ -149,8 +151,8 @@ class EclairFake extends Eclair
     }
 
     /**
-     * Completes one task of the job, with its outputs (`['files' => […], 'metadata' => […]]`), as
-     * a `task.completed` webhook reports it. The job keeps running.
+     * Completes one task of the job, with its outputs (`['files' => […], 'metadata' => […]]`, and
+     * its `usage`), as a `task.completed` webhook reports it. The job keeps running.
      *
      * @param  array<string, mixed>  $outputs
      */
@@ -166,7 +168,7 @@ class EclairFake extends Eclair
             ...$this->jobs[$id]['tasks'][$task],
             'status' => 'completed',
             'endedAt' => $now,
-            ...($outputs === [] ? [] : ['outputs' => $this->outputs($outputs)]),
+            ...$this->taskOutputs($outputs),
         ];
         $this->jobs[$id] = ['startedAt' => $now, ...$this->jobs[$id], 'status' => 'running'];
 
@@ -197,9 +199,12 @@ class EclairFake extends Eclair
 
     /**
      * Fails a task of the job: the tasks that depend on it fail with `dependency_failed`, and the
-     * other unfinished tasks complete.
+     * other unfinished tasks complete. `$usage` is what the failed task used at a paid provider
+     * before it failed (`['mediaSeconds' => 30, 'cost' => […]]`).
+     *
+     * @param  array<string, mixed>|null  $usage
      */
-    public function failJob(Job|string $job, string $task, string $code = 'operation_failed', string $message = 'The operation failed.'): Job
+    public function failJob(Job|string $job, string $task, string $code = 'operation_failed', string $message = 'The operation failed.', ?array $usage = null): Job
     {
         $id = $this->id($job);
         if (! isset($this->jobs[$id]['tasks'][$task])) {
@@ -224,7 +229,12 @@ class EclairFake extends Eclair
             }
             $other = ['startedAt' => $now, ...$other, 'endedAt' => $now];
             if ($name === $task) {
-                $other = [...$other, 'status' => 'failed', 'error' => ['code' => $code, 'message' => $message]];
+                $other = [
+                    ...$other,
+                    'status' => 'failed',
+                    'error' => ['code' => $code, 'message' => $message],
+                    ...($usage === null ? [] : ['usage' => $usage]),
+                ];
             } elseif (isset($failed[$name])) {
                 unset($other['startedAt']);
                 $other = [...$other, 'status' => 'failed', 'error' => ['code' => 'dependency_failed', 'message' => sprintf('The task "%s" failed.', $task)]];
@@ -537,7 +547,8 @@ class EclairFake extends Eclair
         }
         foreach ($this->jobs[$id]['tasks'] as $name => $task) {
             if (in_array($task['status'], ['failed', 'canceled'], true)) {
-                unset($task['error'], $task['startedAt'], $task['endedAt']);
+                // A new run: its usage starts again.
+                unset($task['error'], $task['usage'], $task['startedAt'], $task['endedAt']);
                 $this->jobs[$id]['tasks'][$name] = [...$task, 'status' => 'queued'];
             }
         }
@@ -685,6 +696,23 @@ class EclairFake extends Eclair
         }
 
         return $operations;
+    }
+
+    /**
+     * A task's `outputs` and `usage`, from the outputs a test gives.
+     *
+     * @param  array<string, mixed>  $outputs
+     * @return array<string, mixed>
+     */
+    private function taskOutputs(array $outputs): array
+    {
+        $usage = $outputs['usage'] ?? null;
+        unset($outputs['usage']);
+
+        return [
+            ...($outputs === [] ? [] : ['outputs' => $this->outputs($outputs)]),
+            ...(is_array($usage) ? ['usage' => $usage] : []),
+        ];
     }
 
     /**

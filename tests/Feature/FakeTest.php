@@ -2,10 +2,12 @@
 
 namespace Folklore\Eclair\Tests\Feature;
 
+use Folklore\Eclair\Data\Cost;
 use Folklore\Eclair\Data\ErrorCode;
 use Folklore\Eclair\Data\Job;
 use Folklore\Eclair\Data\JobStatus;
 use Folklore\Eclair\Data\TaskStatus;
+use Folklore\Eclair\Data\TaskUsage;
 use Folklore\Eclair\Exceptions\RequestFailed;
 use Folklore\Eclair\Facades\Eclair;
 use Folklore\Eclair\Tests\TestCase;
@@ -90,6 +92,29 @@ final class FakeTest extends TestCase
         $this->assertSame(JobStatus::Running, $retried->status);
         $this->assertSame(TaskStatus::Queued, $retried->task('hls')?->status);
         $this->assertNull($retried->tasks['hls']->error);
+    }
+
+    public function test_tasks_report_their_usage_at_a_paid_provider(): void
+    {
+        $fake = Eclair::fake();
+        $usage = ['mediaSeconds' => 30, 'cost' => ['amount' => 0.003, 'currency' => 'USD']];
+
+        $done = $fake->completeJob(Eclair::jobs()->create(self::REQUEST), [
+            'transcript' => ['metadata' => ['speech' => true], 'usage' => $usage],
+        ]);
+        $transcript = $done->task('transcript');
+        $this->assertEquals(new TaskUsage(30.0, new Cost(0.003, 'USD')), $transcript?->usage);
+        $this->assertSame(['speech' => true], $transcript?->metadata);
+        $this->assertNull($done->task('h264')?->usage);
+
+        $job = Eclair::jobs()->create(self::REQUEST);
+        $failed = $fake->failJob($job, 'transcript', 'provider_failed', 'Amazon Transcribe failed.', $usage);
+        $this->assertEquals(new TaskUsage(30.0, new Cost(0.003, 'USD')), $failed->task('transcript')?->usage);
+        $this->assertSame(TaskStatus::Failed, $failed->task('transcript')?->status);
+
+        // A retried job starts a new run: its usage starts again.
+        $retried = Eclair::jobs()->retry($job->id);
+        $this->assertNull($retried->task('transcript')?->usage);
     }
 
     public function test_jobs_can_be_canceled_and_listed(): void
