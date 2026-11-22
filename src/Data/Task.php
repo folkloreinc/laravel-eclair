@@ -9,6 +9,7 @@ final readonly class Task
     /**
      * @param  list<OutputFile>  $files
      * @param  array<string, mixed>|null  $metadata  The task's `metadata` output (probe, palette…)
+     * @param  TaskUsage|null  $usage  What the task used at a paid provider, on any end
      * @param  array<string, mixed>  $attributes
      */
     public function __construct(
@@ -22,6 +23,7 @@ final readonly class Task
         public ?CarbonImmutable $startedAt = null,
         public ?CarbonImmutable $endedAt = null,
         private array $attributes = [],
+        public ?TaskUsage $usage = null,
     ) {}
 
     /**
@@ -46,6 +48,7 @@ final readonly class Task
             startedAt: Dates::read($data['startedAt'] ?? null),
             endedAt: Dates::read($data['endedAt'] ?? null),
             attributes: $data,
+            usage: is_array($data['usage'] ?? null) ? TaskUsage::fromArray($data['usage']) : null,
         );
     }
 

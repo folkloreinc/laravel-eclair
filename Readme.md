@@ -73,6 +73,7 @@ $job->task('h264')->status;            // TaskStatus::Completed
 $job->task('h264')->file()->path;      // videos/42/h264.mp4
 $job->task('probe')->metadata;         // ['kind' => 'video', 'duration' => 184.2, …]
 $job->task('hls')->error?->code;       // ErrorCode::DependencyFailed
+$job->task('transcript')->usage;       // TaskUsage: mediaSeconds, cost (amount, currency)
 $job->toArray();                       // the whole response
 
 Eclair::jobs()->list(['status' => 'failed', 'metadata' => ['mediaId' => 42]]);
@@ -81,6 +82,8 @@ Eclair::jobs()->cancel($id);
 Eclair::jobs()->retry($id);
 Eclair::jobs()->files($id);           // every file, segments included
 ```
+
+A task that used a paid provider (`ai.transcribe` with `amazon-transcribe`) has a `usage`: the seconds of media the provider received, and an estimate of its `cost` when the project's price is configured. It is there on any end, failed or canceled included, once the provider may bill the task, and `null` otherwise. A retried job starts it again: book each task's usage from the webhook that ended it.
 
 Set `ECLAIR_WEBHOOK_URL` to send a webhook URL with every job. Without it, Eclair calls the project's webhook.
 

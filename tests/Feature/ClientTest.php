@@ -2,10 +2,12 @@
 
 namespace Folklore\Eclair\Tests\Feature;
 
+use Folklore\Eclair\Data\Cost;
 use Folklore\Eclair\Data\ErrorCode;
 use Folklore\Eclair\Data\JobStatus;
 use Folklore\Eclair\Data\OutputFile;
 use Folklore\Eclair\Data\TaskStatus;
+use Folklore\Eclair\Data\TaskUsage;
 use Folklore\Eclair\Exceptions\ConnectionFailed;
 use Folklore\Eclair\Exceptions\EclairException;
 use Folklore\Eclair\Exceptions\RequestFailed;
@@ -91,6 +93,35 @@ final class ClientTest extends TestCase
         $this->assertSame('videos/42/h264.mp4', $job->task('h264')?->file()?->path);
         $this->assertSame(['h264'], array_map(fn (OutputFile $file) => $file->task, $job->files()));
         $this->assertSame(self::JOB, $job->toArray());
+    }
+
+    public function test_it_reads_what_a_task_used_at_a_paid_provider(): void
+    {
+        $usage = ['mediaSeconds' => 182.4, 'cost' => ['amount' => 0.01824, 'currency' => 'USD']];
+        $job = [
+            'id' => 'job_01JA2Y8C6W4N5V7TQ3H9XK0B2N',
+            'status' => 'canceled',
+            'createdAt' => '2026-10-15T14:00:00Z',
+            'tasks' => [
+                'transcript' => ['status' => 'canceled', 'op' => 'ai.transcribe@1', 'usage' => $usage],
+                'failed' => ['status' => 'failed', 'op' => 'ai.transcribe@1', 'error' => ['code' => 'provider_failed', 'message' => 'Failed.'], 'usage' => ['mediaSeconds' => 12, 'future' => true]],
+                'refused' => ['status' => 'failed', 'op' => 'ai.transcribe@1', 'error' => ['code' => 'provider_refused', 'message' => 'Refused.']],
+                'probe' => ['status' => 'completed', 'op' => 'probe@1'],
+            ],
+        ];
+        $this->assertMatchesProtocol('Job', $job);
+        Http::fake(['eclair.example.com/v1/jobs/*' => Http::response($job)]);
+
+        $read = Eclair::jobs()->find($job['id']);
+
+        $this->assertEquals(new TaskUsage(182.4, new Cost(0.01824, 'USD')), $read->task('transcript')?->usage);
+        $this->assertSame($usage, $read->task('transcript')?->usage?->toArray());
+        // Without a price, the seconds only; unknown fields are ignored.
+        $this->assertEquals(new TaskUsage(12.0), $read->task('failed')?->usage);
+        $this->assertNull($read->task('failed')?->usage?->cost);
+        // A task that ended before it reached its provider, or that uses none.
+        $this->assertNull($read->task('refused')?->usage);
+        $this->assertNull($read->task('probe')?->usage);
     }
 
     public function test_storages_map_to_disks(): void
