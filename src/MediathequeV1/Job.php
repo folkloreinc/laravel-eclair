@@ -105,7 +105,7 @@ abstract class Job extends PipelineJob
 
         $file = app(FileContract::class);
         $file->setFileFromSource($this->sourcePath($output->path), [
-            'source' => $this->file->source,
+            'source' => $this->sourceName(),
             'type' => $type,
             'mime' => $output->mime,
             'size' => $output->size,
@@ -188,11 +188,11 @@ abstract class Job extends PipelineJob
      */
     private function location(): array
     {
-        $config = config('mediatheque.sources.'.$this->file->source);
+        $config = config('mediatheque.sources.'.$this->sourceName());
         if (! is_array($config) || ($config['driver'] ?? null) !== 'filesystem' || ! isset($config['disk'])) {
             throw new InvalidArgumentException(sprintf(
                 'Eclair reads the files of `filesystem` sources only: the source "%s" of the file %s is not one.',
-                $this->file->source,
+                $this->sourceName(),
                 $this->file->getKey(),
             ));
         }
@@ -227,7 +227,7 @@ abstract class Job extends PipelineJob
     private function applyVisibility(string $path): void
     {
         [$disk] = $this->location();
-        $visibility = config('mediatheque.sources.'.$this->file->source.'.visibility')
+        $visibility = config('mediatheque.sources.'.$this->sourceName().'.visibility')
             ?? config('filesystems.disks.'.$disk.'.visibility');
         if (is_string($visibility)) {
             Storage::disk($disk)->setVisibility($this->diskPath($path), $visibility);
@@ -236,7 +236,18 @@ abstract class Job extends PipelineJob
 
     private function sourcePrefix(): string
     {
-        return (string) config('mediatheque.sources.'.$this->file->source.'.path', '/');
+        return (string) config('mediatheque.sources.'.$this->sourceName().'.path', '/');
+    }
+
+    /**
+     * The source of the file: files stored by older versions of the mediatheque have none, and
+     * the mediatheque then uses its default source.
+     */
+    private function sourceName(): string
+    {
+        $source = $this->file->source;
+
+        return is_string($source) && $source !== '' ? $source : (string) config('mediatheque.source');
     }
 
     /** Where Eclair writes, on the disk, before the files are moved to their own paths. */
