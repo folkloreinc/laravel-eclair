@@ -165,6 +165,27 @@ final class JobsTest extends TestCase
         $this->eclair->assertJobCanceled($job);
     }
 
+    public function test_a_file_without_a_source_uses_the_default_source(): void
+    {
+        // As files stored by older versions of the mediatheque
+        $original = $this->original();
+        $original->forceFill(['source' => null])->save();
+        $this->completeWith(['video' => ['files' => ['video.mp4']]]);
+
+        $file = (new H264($original))->handle();
+
+        $this->eclair->assertJobCreated(function (array $request) use ($original): bool {
+            $this->assertSame(['storage' => 'media', 'path' => ltrim((string) $original->getAttribute('path'), '/')], $request['input']);
+
+            return true;
+        });
+        $this->assertInstanceOf(File::class, $file);
+        $file = $file->fresh();
+        $this->assertInstanceOf(File::class, $file);
+        $this->assertSame('cloud', $file->getAttribute('source'));
+        Storage::disk('s3')->assertExists(ltrim((string) $file->getAttribute('path'), '/'));
+    }
+
     public function test_a_local_source_is_refused(): void
     {
         config(['mediatheque.sources.public' => ['driver' => 'local', 'path' => sys_get_temp_dir()]]);
